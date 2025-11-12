@@ -91,7 +91,44 @@
 
 ## ⚡ Activate God Mode in 30 Seconds
 
-### Option 1: Let Claude Install Everything (Recommended)
+### Option 1: Automated Project Setup (Recommended)
+```bash
+# Clone the repository
+git clone https://github.com/Durafen/Claude-code-memory.git
+cd Claude-code-memory
+
+# Run automated setup for your project
+./setup.sh -p /path/to/your/project -c my-project
+
+# The script will:
+# ✓ Install all dependencies (Python + Node.js packages)
+# ✓ Interactively configure API keys (saved to settings.txt)
+# ✓ Check/start Qdrant database via Docker
+# ✓ Build MCP server with correct configuration
+# ✓ Install git hooks (pre-commit, post-merge, post-checkout)
+# ✓ Configure Memory Guard hooks for code quality protection
+# ✓ Generate CLAUDE.md with memory-first instructions
+# ✓ Run initial indexing and gather statistics
+# ✓ Optional: Install global claude-indexer command
+
+# That's it! Complete setup in one command.
+```
+
+**What you'll be asked:**
+- OpenAI API Key (for chat analysis and cleanup)
+- Voyage AI API Key (for embeddings - cheaper than OpenAI)
+- Qdrant URL (defaults to http://localhost:6333)
+- Qdrant API Key (optional, for authenticated instances)
+- Whether to start Qdrant via Docker (if not running)
+- Whether to install global claude-indexer command
+
+**After setup completes:**
+- Your project's CLAUDE.md contains memory usage instructions
+- Git hooks automatically index on commits, pulls, and branch switches
+- Memory Guard protects against duplicate code and quality issues
+- MCP server configured in `.claude/settings.json`
+
+### Option 2: Let Claude Install Everything
 ```
 You: Install Claude Code Memory from https://github.com/Durafen/Claude-code-memory and help me understand how to use it
 
@@ -99,7 +136,7 @@ Claude: I'll help you install the complete Claude Code Memory system...
 [Claude handles everything: clones repos, installs dependencies, configures settings, indexes your project]
 ```
 
-### Option 2: Cross-Platform Automated Setup
+### Option 3: Cross-Platform Automated Setup
 ```bash
 # Handles Python/Node.js setup and dependencies automatically
 # Note: Not yet tested on Windows or Linux
@@ -110,7 +147,7 @@ cd Claude-code-memory
 # Then continue from step 2 below (Configure API keys)
 ```
 
-### Option 3: Manual Installation
+### Option 4: Manual Installation
 ```bash
 # 1. Clone and setup
 git clone https://github.com/Durafen/Claude-code-memory.git
@@ -470,6 +507,90 @@ docker run -p 6333:6333 -v $(pwd)/qdrant_storage:/qdrant/storage qdrant/qdrant
 - Verify project has a valid MCP collection configured
 - Check your project's `CLAUDE.md` contains the MCP collection name (e.g., `mcp__project-name-memory__`)
 - Memory Guard auto-detects collection from CLAUDE.md - without it, uses generic name
+
+## 🔧 Automation Features
+
+### Gitignore Pattern Detection
+The system automatically detects and excludes files from your `.gitignore`:
+
+```python
+# Utility: utils/gitignore_parser.py
+from utils.gitignore_parser import get_patterns_for_project
+
+# Automatically excludes build artifacts, dependencies, generated files
+patterns = get_patterns_for_project('/path/to/project')
+# Returns: ['.git/', 'node_modules/', 'dist/', '__pycache__/', ...]
+```
+
+**Benefits:**
+- No manual exclude configuration needed
+- Respects project-specific .gitignore patterns
+- Combines with sensible defaults (`.git/`, `.claude-indexer/`, build outputs)
+- Prevents indexing of generated code and dependencies
+
+### CLAUDE.md Template System
+Automatically generates project-specific documentation:
+
+```bash
+# Template location: templates/CLAUDE.md.template
+# Generated during setup with substituted variables:
+# - {{PROJECT_NAME}}: Auto-detected from folder
+# - {{COLLECTION_NAME}}: User-specified or auto-detected
+# - {{VECTOR_COUNT}}: Post-indexing statistics
+# - {{FILE_COUNT}}: Total files indexed
+# - {{PROJECT_PATH}}: Absolute path
+# - {{GENERATION_DATE}}: Setup timestamp
+```
+
+**What gets generated:**
+- Memory-first workflow instructions
+- Quick command reference with correct MCP tool names
+- Memory entity types documentation
+- Memory Guard configuration guide
+- Git hooks information
+- Manual re-index instructions
+
+### Automatic Git Hooks
+Three hooks installed automatically during setup:
+
+**pre-commit**: Indexes changed files before each commit
+```bash
+# Runs before: git commit
+# Effect: New code immediately available in memory
+```
+
+**post-merge**: Updates index after pulls and merges
+```bash
+# Runs after: git pull, git merge
+# Effect: Incoming code changes indexed automatically
+```
+
+**post-checkout**: Re-indexes when switching branches
+```bash
+# Runs after: git checkout <branch>
+# Effect: Memory reflects current branch state
+```
+
+All hooks use absolute paths and graceful error handling (never block git operations).
+
+### Memory Guard Auto-Configuration
+Automatically configured during setup:
+
+```json
+// Project-local .claude/settings.json
+{
+  "hooks": {
+    "UserPromptSubmit": [...],  // Session control (dups on/off)
+    "PreToolUse": [...]          // Code quality gate
+  }
+}
+```
+
+**Protection Layers:**
+- Duplicate code detection
+- Missing error handling detection
+- Breaking API change prevention
+- Feature preservation checks
 
 ## 🤝 Contributing
 
