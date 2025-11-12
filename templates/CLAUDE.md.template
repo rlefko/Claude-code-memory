@@ -1,0 +1,125 @@
+# {{PROJECT_NAME}} - Development Instructions
+
+## ⚡ CRITICAL: YOU HAVE PERFECT MEMORY - USE IT FIRST ⚡
+
+**🚫 DO NOT read files directly. DO NOT use Grep/Glob/Read as your first step.**
+**✅ ALWAYS search memory first. It's 100x faster and has the entire codebase indexed.**
+
+This project has **semantic code memory** with {{VECTOR_COUNT}} vectors covering {{FILE_COUNT}} files.
+Memory search is 3-5ms vs 500ms+ for file operations.
+
+### 🎯 Memory-First Workflow (Follow Every Time)
+
+**Before ANY task:**
+1. 🔍 **Search memory** for existing implementations
+2. 📚 **Find patterns** to follow
+3. 🏗️ **Check relationships** to understand context
+4. 💻 **Only then** write code using discovered patterns
+
+**Breaking this rule wastes time and creates duplicate code!**
+
+### Quick Memory Commands (START HERE)
+
+```python
+# 🔍 Fast semantic search (3-5ms) - START HERE
+mcp__{{COLLECTION_NAME}}_memory__search_similar("feature/component name", limit=20)
+
+# 📚 Find patterns before implementing
+mcp__{{COLLECTION_NAME}}_memory__search_similar("pattern description", entityTypes=["implementation_pattern", "architecture_pattern"])
+
+# 🐛 Debug faster with past solutions
+mcp__{{COLLECTION_NAME}}_memory__search_similar("error description", entityTypes=["debugging_pattern"])
+
+# 🏗️ Understand architecture and relationships
+mcp__{{COLLECTION_NAME}}_memory__read_graph(entity="ComponentName", mode="smart")
+
+# 💡 Get implementation details when needed
+mcp__{{COLLECTION_NAME}}_memory__get_implementation("function_name", scope="logical")
+
+# ➕ Add new knowledge to memory
+mcp__{{COLLECTION_NAME}}_memory__create_entities([{
+  "name": "NewComponent",
+  "entityType": "class",
+  "observations": ["Component purpose", "Key patterns used"]
+}])
+```
+
+### Memory Entity Types
+
+- `function` - Functions and methods
+- `class` - Classes and components
+- `file` - File-level metadata
+- `documentation` - Code documentation
+- `implementation_pattern` - Common patterns
+- `architecture_pattern` - Architectural decisions
+- `debugging_pattern` - Bug solutions
+- `integration_pattern` - Third-party integrations
+- `metadata` - General project info
+
+### Memory Guard Protection
+
+Memory Guard is active for this project and will:
+- Prevent duplicate code creation by checking existing implementations
+- Catch missing error handling and validation patterns
+- Block breaking API changes that affect existing code
+- Protect existing functionality during refactoring
+
+**Override when needed:** `# @allow-duplicate: reason`
+
+**Session control:**
+- `dups off` - Disable duplicate detection
+- `dups on` - Enable duplicate detection
+- `dups status` - Check current status
+
+---
+
+## ⚠️ Important Notes - Memory-First Development
+
+1. **🚫 NEVER skip memory search** - Search memory BEFORE using Grep/Glob/Read tools
+   - Memory: 3-5ms, 100% coverage, semantic understanding
+   - File tools: 500ms+, requires exact patterns, no context
+
+2. **✅ Always follow this order:**
+   - Step 1: `search_similar()` to find existing code
+   - Step 2: `read_graph()` to understand relationships
+   - Step 3: `get_implementation()` for detailed code
+   - Step 4: Only then use Read/Grep if needed for verification
+
+3. **📚 Check existing patterns** - Memory has all architectural decisions and best practices indexed
+
+4. **💾 Document new patterns** - Add important discoveries to memory with `create_entities()`
+
+---
+
+## 🔧 Memory System Maintenance
+
+### Automatic Updates
+Memory is automatically updated via git hooks:
+- **pre-commit**: Indexes changed files before commit
+- **post-merge**: Updates index after `git pull`
+- **post-checkout**: Updates index after branch switch
+
+### Manual Re-index (if needed)
+```bash
+# From memory project directory
+source .venv/bin/activate
+claude-indexer index -p {{PROJECT_PATH}} -c {{COLLECTION_NAME}}
+```
+
+### Check Memory Status
+```bash
+# View collection statistics
+python utils/qdrant_stats.py -c {{COLLECTION_NAME}}
+```
+
+---
+
+## 📚 Additional Project Information
+
+Add your project-specific documentation below this section.
+
+---
+
+*Memory system automatically configured by setup.sh*
+*Collection: {{COLLECTION_NAME}}*
+*Generated: {{GENERATION_DATE}}*
