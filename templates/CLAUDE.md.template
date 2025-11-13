@@ -56,20 +56,38 @@ mcp__{{COLLECTION_NAME}}_memory__create_entities([{
 - `integration_pattern` - Third-party integrations
 - `metadata` - General project info
 
-### Memory Guard Protection
+### MCP Server Configuration
 
-Memory Guard is active for this project and will:
-- Prevent duplicate code creation by checking existing implementations
-- Catch missing error handling and validation patterns
-- Block breaking API changes that affect existing code
-- Protect existing functionality during refactoring
+The semantic memory is powered by an MCP (Model Context Protocol) server configured in `.mcp.json`:
 
-**Override when needed:** `# @allow-duplicate: reason`
+**📍 Location:** `.mcp.json` in project root (git-ignored, contains API keys)
 
-**Session control:**
-- `dups off` - Disable duplicate detection
-- `dups on` - Enable duplicate detection
-- `dups status` - Check current status
+**🔒 Security:** This file contains API keys and is automatically added to `.gitignore` during setup
+
+**👥 Team Workflow:** Use `.mcp.json.example` as a template:
+```bash
+# Team members can set up their own .mcp.json
+cp .mcp.json.example .mcp.json
+# Edit .mcp.json with your API keys and paths
+# Note: .mcp.json is git-ignored, so your keys stay private
+```
+
+**🔄 Restart Required:** After setup or changes, restart Claude Code to load the MCP server
+
+### Memory Guard Protection (Optional)
+
+Memory Guard hooks provide additional code quality protection but are **not configured automatically**.
+
+**Manual Setup (Optional):**
+- Add UserPromptSubmit hooks for semantic command detection
+- Add PreToolUse hooks for duplicate code prevention
+- See main project documentation for hook configuration
+
+**Benefits when configured:**
+- Prevent duplicate code creation
+- Catch missing error handling patterns
+- Block breaking API changes
+- Protect functionality during refactoring
 
 ---
 

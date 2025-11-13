@@ -1,7 +1,15 @@
 #!/usr/bin/env python3
 """
-Merge MCP server configuration into settings.local.json.
+DEPRECATED: This utility is no longer used in automated setup.
 
+As of the .mcp.json migration, setup.sh creates .mcp.json directly in the
+project root instead of merging into .claude/settings.local.json.
+
+This file is preserved for backward compatibility and manual use cases,
+but is not invoked by setup.sh.
+
+Previous Purpose:
+Merge MCP server configuration into settings.local.json.
 Handles merging new MCP server config with existing settings without
 overwriting other MCP servers or configurations.
 """

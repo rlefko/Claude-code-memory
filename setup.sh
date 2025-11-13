@@ -375,16 +375,6 @@ if [ ! -d "$PROJECT_PATH/.git" ]; then
     print_warning "Project is not a git repository, skipping git hooks"
 else
     HOOKS_DIR="$PROJECT_PATH/.git/hooks"
-    WRAPPER_PATH="/usr/local/bin/claude-indexer"
-
-    # Check if global wrapper exists
-    if [ ! -f "$WRAPPER_PATH" ]; then
-        print_warning "Global wrapper not installed at $WRAPPER_PATH"
-        print_info "Run ./install.sh to install the global wrapper"
-        INDEXER_CMD="$VENV_PATH/bin/python -m claude_indexer.cli_full"
-    else
-        INDEXER_CMD="$WRAPPER_PATH"
-    fi
 
     # Create pre-commit hook
     print_info "Creating pre-commit hook..."
@@ -396,8 +386,8 @@ else
 
 echo "🔄 Running code indexing before commit..."
 
-# Index changed files
-$INDEXER_CMD --project "$PROJECT_PATH" --collection "$COLLECTION_NAME" --quiet
+# Index changed files (uses global claude-indexer wrapper)
+claude-indexer index -p "\$(pwd)" -c "$COLLECTION_NAME" 2>&1 | grep -E "(✓|✗|Error)" || true
 
 # Check if indexing succeeded
 if [ \$? -eq 0 ]; then
@@ -422,8 +412,8 @@ EOF
 
 echo "🔄 Running code indexing after merge/pull..."
 
-# Index all changes
-$INDEXER_CMD --project "$PROJECT_PATH" --collection "$COLLECTION_NAME" --quiet
+# Index all changes (uses global claude-indexer wrapper)
+claude-indexer index -p "\$(pwd)" -c "$COLLECTION_NAME" 2>&1 | grep -E "(✓|✗|Error)" || true
 
 # Check if indexing succeeded
 if [ \$? -eq 0 ]; then
@@ -455,8 +445,8 @@ branch_checkout=\$3
 if [ "\$branch_checkout" = "1" ]; then
     echo "🔄 Running code indexing after branch checkout..."
 
-    # Index all changes
-    $INDEXER_CMD --project "$PROJECT_PATH" --collection "$COLLECTION_NAME" --quiet
+    # Index all changes (uses global claude-indexer wrapper)
+    claude-indexer index -p "\$(pwd)" -c "$COLLECTION_NAME" 2>&1 | grep -E "(✓|✗|Error)" || true
 
     # Check if indexing succeeded
     if [ \$? -eq 0 ]; then
@@ -474,20 +464,38 @@ EOF
 fi
 
 # ============================================================================
-# Step 6: Memory Guard Hooks Configuration
+# Step 6: MCP Server Configuration
 # ============================================================================
-print_header "Step 6: Configuring Memory Guard Hooks"
+print_header "Step 6: Configuring MCP Server"
 
-# Create .claude directory if it doesn't exist
-CLAUDE_DIR="$PROJECT_PATH/.claude"
-mkdir -p "$CLAUDE_DIR"
+# SECURITY FIRST: Add .mcp.json to .gitignore immediately (contains API keys)
+print_info "Securing API keys by adding .mcp.json to .gitignore..."
+GITIGNORE_PATH="$PROJECT_PATH/.gitignore"
 
-# Create settings.local.json with MCP and hooks configuration
-print_info "Configuring project-local MCP server..."
+if [ ! -f "$GITIGNORE_PATH" ]; then
+    # Create .gitignore if it doesn't exist
+    echo ".mcp.json" > "$GITIGNORE_PATH"
+    print_success "Created .gitignore with .mcp.json"
+else
+    # Add .mcp.json if not already present
+    if ! grep -q "^\.mcp\.json$" "$GITIGNORE_PATH"; then
+        echo "" >> "$GITIGNORE_PATH"
+        echo ".mcp.json" >> "$GITIGNORE_PATH"
+        print_success "Added .mcp.json to .gitignore"
+    else
+        print_success ".mcp.json already in .gitignore"
+    fi
+fi
 
-# Create temporary JSON config
-TEMP_CONFIG=$(mktemp)
-cat > "$TEMP_CONFIG" << EOF
+# Verify .gitignore contains .mcp.json before proceeding
+if ! grep -q "^\.mcp\.json$" "$GITIGNORE_PATH"; then
+    print_error "Failed to add .mcp.json to .gitignore - aborting for security"
+    exit 1
+fi
+
+# Create .mcp.json with hardcoded values (git-ignored, fully automated)
+print_info "Creating .mcp.json with API keys (git-ignored)..."
+cat > "$PROJECT_PATH/.mcp.json" << EOF
 {
   "mcpServers": {
     "${COLLECTION_NAME}-memory": {
@@ -497,66 +505,51 @@ cat > "$TEMP_CONFIG" << EOF
         "$MCP_DIR/dist/index.js"
       ],
       "env": {
-        "OPENAI_API_KEY": "${OPENAI_API_KEY}",
-        "QDRANT_URL": "${QDRANT_URL}",
+        "OPENAI_API_KEY": "$OPENAI_API_KEY",
+        "QDRANT_URL": "$QDRANT_URL",
         "QDRANT_COLLECTION_NAME": "$COLLECTION_NAME",
+        "QDRANT_API_KEY": "${QDRANT_API_KEY:-}",
+        "VOYAGE_API_KEY": "$VOYAGE_API_KEY",
+        "EMBEDDING_PROVIDER": "voyage",
+        "EMBEDDING_MODEL": "voyage-3.5-lite"
+      }
+    }
+  }
+}
+EOF
+print_success "Created .mcp.json (works immediately, git-ignored)"
+
+# Create .mcp.json.example template with env vars (safe to commit)
+print_info "Creating .mcp.json.example template (committable)..."
+cat > "$PROJECT_PATH/.mcp.json.example" << 'EOF'
+{
+  "mcpServers": {
+    "COLLECTION_NAME-memory": {
+      "type": "stdio",
+      "command": "node",
+      "args": [
+        "${CLAUDE_MEMORY_PATH}/mcp-qdrant-memory/dist/index.js"
+      ],
+      "env": {
+        "OPENAI_API_KEY": "${OPENAI_API_KEY}",
+        "QDRANT_URL": "${QDRANT_URL:-http://localhost:6333}",
+        "QDRANT_COLLECTION_NAME": "COLLECTION_NAME",
         "QDRANT_API_KEY": "${QDRANT_API_KEY:-}",
         "VOYAGE_API_KEY": "${VOYAGE_API_KEY}",
         "EMBEDDING_PROVIDER": "voyage",
         "EMBEDDING_MODEL": "voyage-3.5-lite"
-      },
-      "alwaysAllow": [
-        "create_entities",
-        "create_relations",
-        "add_observations",
-        "delete_entities",
-        "delete_observations",
-        "delete_relations",
-        "read_graph",
-        "search_similar",
-        "get_implementation"
-      ]
+      }
     }
-  },
-  "hooks": {
-    "UserPromptSubmit": [
-      {
-        "matcher": "",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "$VENV_PATH/bin/python $SCRIPT_DIR/utils/prompt_handler.py"
-          }
-        ]
-      }
-    ],
-    "PreToolUse": [
-      {
-        "matcher": "Write|Edit|MultiEdit",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "$VENV_PATH/bin/python $SCRIPT_DIR/utils/memory_guard.py"
-          }
-        ]
-      }
-    ]
   }
 }
 EOF
+print_success "Created .mcp.json.example template"
 
-# Merge configuration using Python helper
-$VENV_PATH/bin/python "$SCRIPT_DIR/utils/merge_settings.py" \
-    "$CLAUDE_DIR/settings.local.json" \
-    "$(cat $TEMP_CONFIG)"
-
-# Clean up temp file
-rm -f "$TEMP_CONFIG"
-
-print_success "Project-local MCP server configured"
-print_info "MCP server: ${COLLECTION_NAME}-memory"
-print_info "Location: $CLAUDE_DIR/settings.local.json"
-print_info "Available tools: create_entities, read_graph, search_similar, get_implementation, etc."
+print_success "MCP server configured"
+print_info "Server name: ${COLLECTION_NAME}-memory"
+print_info "Config location: $PROJECT_PATH/.mcp.json (git-ignored)"
+print_info "Team template: $PROJECT_PATH/.mcp.json.example (committable)"
+print_warning "⚠️  SECURITY: .mcp.json contains API keys and is git-ignored"
 print_warning "Restart Claude Code to load the new MCP server"
 
 # ============================================================================
