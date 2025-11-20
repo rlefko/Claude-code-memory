@@ -440,7 +440,10 @@ class ImplementationProcessor(ContentProcessor):
     def process_batch(
         self, implementation_chunks: list["EntityChunk"], context: ProcessingContext
     ) -> ProcessingResult:
-        """Process implementation chunks with Git+Meta deduplication."""
+        """Process implementation chunks with Git+Meta deduplication.
+
+        With unified hybrid embeddings, skip chunks already embedded with their metadata.
+        """
         if not implementation_chunks:
             return ProcessingResult.success_result()
 
@@ -450,13 +453,20 @@ class ImplementationProcessor(ContentProcessor):
             )
 
         # Check which implementation chunks need embedding
-        # Skip deduplication for entities that were just replaced (their old content was deleted)
+        # Skip chunks that already have unified embeddings with their metadata
         chunks_to_check_dedup = []
         chunks_already_processed = []
+        chunks_already_unified = []
 
         for chunk in implementation_chunks:
             entity_id = f"{chunk.metadata.get('file_path', '')}::{chunk.entity_name}"
-            if entity_id in context.replaced_entity_ids:
+
+            # Check if this implementation was already embedded with its metadata (unified)
+            if hasattr(context, "unified_entity_ids") and entity_id in context.unified_entity_ids:
+                chunks_already_unified.append(chunk)
+                if self.logger:
+                    self.logger.debug(f"⚡ Skipping unified implementation: {entity_id}")
+            elif entity_id in context.replaced_entity_ids:
                 # This entity was just replaced - don't deduplicate against stale data
                 chunks_already_processed.append(chunk)
             else:
@@ -471,15 +481,24 @@ class ImplementationProcessor(ContentProcessor):
         chunks_to_embed = chunks_already_processed + chunks_to_embed_dedup
 
         # Log efficiency gains
-        if chunks_to_skip and self.logger:
+        total_skipped = len(chunks_to_skip) + len(chunks_already_unified)
+        if total_skipped > 0 and self.logger:
+            if chunks_already_unified:
+                self.logger.info(
+                    f"⚡ Unified Embedding Optimization: Skipped {len(chunks_already_unified)} implementations already in unified embeddings"
+                )
+            if chunks_to_skip:
+                self.logger.info(
+                    f"⚡ Git+Meta Implementation: Skipped {len(chunks_to_skip)} unchanged implementations"
+                )
             self.logger.info(
-                f"⚡ Git+Meta Implementation: Skipped {len(chunks_to_skip)} unchanged implementations (saved {len(chunks_to_skip)} embeddings)"
+                f"⚡ Total implementation embeddings saved: {total_skipped} (reduced API calls by {total_skipped})"
             )
 
         if not chunks_to_embed:
             return ProcessingResult.success_result(
                 items_processed=len(implementation_chunks),
-                embeddings_skipped=len(chunks_to_skip),
+                embeddings_skipped=total_skipped,
             )
 
         # Generate embeddings

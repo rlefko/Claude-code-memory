@@ -184,6 +184,17 @@ class CoreIndexer:
             "requests": 0,
         }
 
+        # Initialize embedding metrics tracking
+        self._embedding_metrics: dict[str, int | float] = {
+            "metadata_embeddings": 0,
+            "implementation_embeddings": 0,
+            "relation_embeddings": 0,
+            "total_embeddings": 0,
+            "embeddings_reused": 0,
+            "relation_batch_size": 500,  # Track optimized batch size
+            "avg_embeddings_per_entity": 0.0,
+        }
+
     def _create_batch_callback(self, collection_name: str) -> Any:
         """Create a callback function for batch processing during streaming."""
 

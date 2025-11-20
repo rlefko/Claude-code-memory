@@ -173,8 +173,13 @@ class VoyageEmbedder(TiktokenMixin, RetryableEmbedder):
                 error=str(e),
             )
 
-    def embed_batch(self, texts: list[str]) -> list[EmbeddingResult]:
-        """Generate embeddings for multiple texts."""
+    def embed_batch(self, texts: list[str], item_type: str = "general") -> list[EmbeddingResult]:
+        """Generate embeddings for multiple texts.
+
+        Args:
+            texts: List of text strings to embed
+            item_type: Type of items being embedded ('relation', 'entity', 'implementation', 'general')
+        """
         if not texts:
             return []
 
@@ -186,7 +191,13 @@ class VoyageEmbedder(TiktokenMixin, RetryableEmbedder):
             "voyage-code-3": 120_000,
         }
         token_limit = model_limits.get(self.model, 120_000)  # Conservative default
-        text_count_limit = 1000  # Voyage API batch size limit
+
+        # Optimize batch size based on content type
+        # Relations are very short (~20-50 tokens), so we can batch many more
+        if item_type == "relation":
+            text_count_limit = 500  # Aggressive batching for relations (80% reduction in API calls)
+        else:
+            text_count_limit = 100  # Standard batching for entities/implementations
 
         # Import progress bar if available
         try:

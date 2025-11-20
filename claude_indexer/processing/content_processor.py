@@ -95,15 +95,43 @@ class ContentProcessor(ContentHashMixin, ABC):
         )
 
     def process_embeddings(self, items: list, item_name: str) -> tuple[list, dict]:  # noqa: ARG002
-        """Generate embeddings with error handling and cost tracking."""
+        """Generate embeddings with error handling and cost tracking.
+
+        For unified hybrid architecture:
+        - Entities get combined metadata+implementation embeddings
+        - Implementation chunks are skipped if already included in entity
+        """
         if not items:
             return [], {"tokens": 0, "cost": 0.0, "requests": 0}
 
-        # Extract content for embedding - use rich content for semantic search
-        texts = [getattr(item, "content", str(item)) for item in items]
+        # Check if we can use unified embeddings (when we have implementation data)
+        use_unified = item_name == "entity" and hasattr(self, "_implementation_cache")
+
+        if use_unified:
+            # Unified hybrid embedding: combine metadata + implementation
+            texts = []
+            for item in items:
+                # Try to get implementation for this entity
+                entity_key = f"{item.metadata.get('file_path', '')}::{item.entity_name}"
+                impl_content = getattr(self, "_implementation_cache", {}).get(entity_key, "")
+
+                if impl_content:
+                    # Combine metadata description with implementation
+                    unified_content = f"{item.content}\n\n# Implementation:\n{impl_content}"
+                    texts.append(unified_content)
+                    # Mark that this entity has unified embedding
+                    item.metadata["has_unified_embedding"] = True
+                else:
+                    # No implementation, use metadata only
+                    texts.append(item.content)
+                    item.metadata["has_unified_embedding"] = False
+        else:
+            # Standard extraction for non-unified cases
+            texts = [getattr(item, "content", str(item)) for item in items]
 
         # Generate dense embeddings (primary) using rich semantic content
-        embedding_results = self.embedder.embed_batch(texts)
+        # Pass item_name to optimize batching for relations
+        embedding_results = self.embedder.embed_batch(texts, item_type=item_name)
 
         # Generate BM25 sparse embeddings for metadata chunks only
         if item_name == "entity":

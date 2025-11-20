@@ -159,14 +159,24 @@ class OpenAIEmbedder(TiktokenMixin, RetryableEmbedder):
                 error=str(e),
             )
 
-    def embed_batch(self, texts: list[str]) -> list[EmbeddingResult]:
-        """Generate embeddings for multiple texts with enhanced token-based batching."""
+    def embed_batch(self, texts: list[str], item_type: str = "general") -> list[EmbeddingResult]:
+        """Generate embeddings for multiple texts with enhanced token-based batching.
+
+        Args:
+            texts: List of text strings to embed
+            item_type: Type of items being embedded ('relation', 'entity', 'implementation', 'general')
+        """
         if not texts:
             return []
 
         # Model-specific token limits with tiktoken accuracy
         token_limit = self._get_effective_token_limit()
-        text_count_limit = self._get_text_count_limit()
+
+        # Optimize batch size for relations which are very short
+        if item_type == "relation":
+            text_count_limit = 500  # Relations are typically 20-50 tokens
+        else:
+            text_count_limit = self._get_text_count_limit()
 
         results = []
         current_batch: list[str] = []

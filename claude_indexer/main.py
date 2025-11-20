@@ -668,6 +668,28 @@ def run_indexing_with_specific_files(
                         logger.info(f"   Tokens used: {cost_data['tokens']:,}")
                         logger.info(f"   Estimated cost: ${cost_data['cost']:.4f}")
                         logger.info(f"   API requests: {cost_data['requests']}")
+
+                # Show detailed embedding metrics
+                if hasattr(indexer, "_embedding_metrics"):
+                    metrics = indexer._embedding_metrics
+                    logger.info("")
+                    logger.info("📊 Embedding Metrics Dashboard:")
+                    logger.info(f"   Metadata embeddings:     {metrics.get('metadata_embeddings', 0):>6}")
+                    logger.info(f"   Implementation embeddings: {metrics.get('implementation_embeddings', 0):>6}")
+                    logger.info(f"   Relation embeddings:     {metrics.get('relation_embeddings', 0):>6}")
+                    logger.info(f"   Total embeddings:        {metrics.get('total_embeddings', 0):>6}")
+                    logger.info(f"   Embeddings reused:       {metrics.get('embeddings_reused', 0):>6}")
+
+                    # Calculate efficiency metrics
+                    total = metrics.get('total_embeddings', 0) + metrics.get('embeddings_reused', 0)
+                    if total > 0:
+                        reuse_pct = (metrics.get('embeddings_reused', 0) / total) * 100
+                        logger.info(f"   Cache hit rate:          {reuse_pct:>5.1f}%")
+
+                    # Show optimization impact
+                    if metrics.get('relation_batch_size', 0) > 0:
+                        logger.info(f"   Relation batch size:     {metrics.get('relation_batch_size', 0):>6}")
+                        logger.info(f"   Avg embeddings/entity:   {metrics.get('avg_embeddings_per_entity', 0):>6.2f}")
             else:
                 logger.info(f"✅ Processed {files_processed} files")
                 if files_failed > 0:
