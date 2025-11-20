@@ -96,8 +96,8 @@ class IndexerConfig(BaseModel):
     max_file_size: int = Field(default=1048576, ge=1024)  # 1MB default, min 1KB
 
     # Performance Settings
-    batch_size: int = Field(default=25, ge=1, le=1000)  # Reduced from 50 for memory
-    initial_batch_size: int = Field(default=5, ge=1, le=50)  # Reduced from 10 for large projects
+    batch_size: int = Field(default=100, ge=1, le=1000)  # Increased for better API efficiency
+    initial_batch_size: int = Field(default=25, ge=1, le=50)  # Start higher for faster processing
     batch_size_ramp_up: bool = Field(default=True)  # Gradually increase batch size
     max_concurrent_files: int = Field(default=5, ge=1, le=100)  # Reduced from 10 for memory
     cleanup_interval_minutes: int = Field(

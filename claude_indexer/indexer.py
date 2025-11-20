@@ -480,7 +480,7 @@ class CoreIndexer:
                 if verbose:
                     self.logger.info(f"Creating collection '{collection_name}' with sparse vector support...")
                 # Use ensure_collection which properly configures both dense and sparse vectors
-                vector_size = 1024  # Voyage-3 default size
+                vector_size = 512  # Voyage-3-lite default size (matches our default embedder)
                 self.vector_store.backend.ensure_collection(collection_name, vector_size)
                 if verbose:
                     self.logger.info(f"✅ Collection '{collection_name}' created with hybrid search support")
