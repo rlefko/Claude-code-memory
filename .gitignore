@@ -93,3 +93,4 @@ utils/scraper_configs_manual_work.json
 utils/scraper_configs.json
 isolated_test
 .claude-indexer
+web-explorer/

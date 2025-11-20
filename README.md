@@ -178,6 +178,36 @@ cd ..
 
 # 5. Install global wrapper (creates claude-indexer command)
 ./install.sh  # On Windows: Use Git Bash or WSL
+```
+
+## 🌐 Web Explorer - Visualize Your Indexed Codebases
+
+**Companion Project**: A beautiful web UI for exploring and visualizing your indexed codebases is available as a separate project:
+
+🔗 **[Code Memory Explorer](https://github.com/rlefko/code-memory-explorer)**
+
+### Features:
+- **Interactive graph visualization** of code relationships
+- **Semantic search** across all indexed collections
+- **Code viewer** with syntax highlighting (Monaco Editor)
+- **Real-time updates** via WebSockets
+- **Multi-collection management** dashboard
+
+### Quick Start:
+```bash
+# Clone the web explorer
+git clone https://github.com/rlefko/code-memory-explorer.git
+cd code-memory-explorer
+
+# Start with Docker Compose (includes its own Qdrant if needed)
+make
+
+# Visit http://localhost:8080
+```
+
+The web explorer connects directly to your Qdrant database to visualize all indexed collections created by this indexer.
+
+---
 
 # 6. Install and Start Qdrant Vector Database
 ## Docker Installation (Recommended)
