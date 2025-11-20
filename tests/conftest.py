@@ -262,8 +262,13 @@ class DummyEmbedder:
             processing_time=0.001,
         )
 
-    def embed_batch(self, texts: list[str]):
-        """Generate embeddings for multiple texts."""
+    def embed_batch(self, texts: list[str], item_type: str = "general"):
+        """Generate embeddings for multiple texts.
+
+        Args:
+            texts: List of text strings to embed
+            item_type: Type of items being embedded (unused by dummy embedder)
+        """
         return [self.embed_text(text) for text in texts]
 
     def get_model_info(self):

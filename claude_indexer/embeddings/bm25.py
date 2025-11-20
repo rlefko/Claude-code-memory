@@ -418,8 +418,13 @@ class BM25Embedder(Embedder):
                 error=str(e),
             )
 
-    def embed_batch(self, texts: list[str]) -> list[EmbeddingResult]:
-        """Generate BM25 sparse embeddings for multiple texts."""
+    def embed_batch(self, texts: list[str], item_type: str = "general") -> list[EmbeddingResult]:
+        """Generate BM25 sparse embeddings for multiple texts.
+
+        Args:
+            texts: List of text strings to embed
+            item_type: Type of items being embedded (currently unused by BM25, but kept for API consistency)
+        """
         if not texts:
             return []
         

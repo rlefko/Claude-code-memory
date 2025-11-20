@@ -103,8 +103,14 @@ class Embedder(ABC):
         pass
 
     @abstractmethod
-    def embed_batch(self, texts: list[str]) -> list[EmbeddingResult]:
-        """Generate embeddings for multiple texts."""
+    def embed_batch(self, texts: list[str], item_type: str = "general") -> list[EmbeddingResult]:
+        """Generate embeddings for multiple texts.
+
+        Args:
+            texts: List of text strings to embed
+            item_type: Type of items being embedded ('relation', 'entity', 'implementation', 'general')
+                      Used for batch size optimization.
+        """
         pass
 
     @abstractmethod
@@ -279,8 +285,13 @@ class CachingEmbedder(Embedder):
 
         return result
 
-    def embed_batch(self, texts: list[str]) -> list[EmbeddingResult]:
-        """Embed batch with caching."""
+    def embed_batch(self, texts: list[str], item_type: str = "general") -> list[EmbeddingResult]:
+        """Embed batch with caching.
+
+        Args:
+            texts: List of text strings to embed
+            item_type: Type of items being embedded (passed through to wrapped embedder)
+        """
         results = []
         uncached_texts = []
         uncached_indices = []
@@ -299,7 +310,7 @@ class CachingEmbedder(Embedder):
 
         # Embed uncached texts
         if uncached_texts:
-            uncached_results = self.embedder.embed_batch(uncached_texts)
+            uncached_results = self.embedder.embed_batch(uncached_texts, item_type=item_type)
 
             # Fill in results and update cache
             for i, result in enumerate(uncached_results):

@@ -160,7 +160,7 @@ class ContentProcessor(ContentHashMixin, ABC):
                             bm25_texts.append(getattr(item, "content", str(item)))
                     
                     # Generate BM25 embeddings using optimized content
-                    bm25_results = bm25_embedder.embed_batch(bm25_texts)
+                    bm25_results = bm25_embedder.embed_batch(bm25_texts, item_type=item_name)
                     
                     # Add sparse vectors only to items that should have BM25
                     for dense_result, sparse_result, should_have_bm25 in zip(embedding_results, bm25_results, should_apply_bm25, strict=False):
