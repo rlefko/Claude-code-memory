@@ -418,12 +418,13 @@ class QdrantStore(ManagedVectorStore, ContentHashMixin):
                 ))
         else:
             # Collection doesn't support sparse vectors - fallback to dense only
+            # Old-style collections expect unnamed vectors, not named vectors
             if hybrid_points:
                 logger.warning(f"Collection {collection_name} doesn't support sparse vectors, using dense only for {len(hybrid_points)} hybrid points")
             for point in hybrid_points:
                 qdrant_points.append(PointStruct(
-                    id=point.id, 
-                    vector={"dense": point.dense_vector},
+                    id=point.id,
+                    vector=point.dense_vector,  # Old-style: use unnamed vector
                     payload=point.payload
                 ))
         

@@ -474,23 +474,16 @@ class CoreIndexer:
         start_time = time.time()
 
         # Initialize collection if it doesn't exist to avoid warnings
+        # Use ensure_collection to properly configure both dense and sparse vectors
         try:
             if not self.vector_store.collection_exists(collection_name):
                 if verbose:
-                    self.logger.info(f"Creating collection '{collection_name}'...")
-                # Create collection with appropriate vector size
-                from qdrant_client.models import VectorParams, Distance
+                    self.logger.info(f"Creating collection '{collection_name}' with sparse vector support...")
+                # Use ensure_collection which properly configures both dense and sparse vectors
                 vector_size = 1024  # Voyage-3 default size
-                self.vector_store.client.create_collection(
-                    collection_name=collection_name,
-                    vectors_config=VectorParams(
-                        size=vector_size,
-                        distance=Distance.COSINE
-                    ),
-                    optimizers_config={"indexing_threshold": 20}
-                )
+                self.vector_store.backend.ensure_collection(collection_name, vector_size)
                 if verbose:
-                    self.logger.info(f"✅ Collection '{collection_name}' created")
+                    self.logger.info(f"✅ Collection '{collection_name}' created with hybrid search support")
         except Exception as e:
             # If collection already exists or any other error, continue
             if verbose:
