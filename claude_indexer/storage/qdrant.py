@@ -172,7 +172,7 @@ class QdrantStore(ManagedVectorStore, ContentHashMixin):
             self.client.create_collection(
                 collection_name=collection_name,
                 vectors_config=VectorParams(size=vector_size, distance=distance),
-                optimizers_config={"indexing_threshold": 100},
+                optimizers_config={"indexing_threshold": 20},  # Lower threshold for better initial indexing performance
             )
 
             return StorageResult(
@@ -236,7 +236,7 @@ class QdrantStore(ManagedVectorStore, ContentHashMixin):
                 collection_name=collection_name,
                 vectors_config=vectors_config,
                 sparse_vectors_config=sparse_vectors_config,
-                optimizers_config={"indexing_threshold": 100},
+                optimizers_config={"indexing_threshold": 20},  # Lower threshold for better initial indexing performance
             )
 
             logger.debug(
@@ -292,6 +292,60 @@ class QdrantStore(ManagedVectorStore, ContentHashMixin):
                 operation="delete_collection",
                 processing_time=time.time() - start_time,
                 errors=[f"Failed to delete collection {collection_name}: {e}"],
+            )
+
+    def recreate_collection_safely(
+        self,
+        collection_name: str,
+        vector_size: int,
+        distance_metric: str = "cosine",
+        enable_bm25: bool = True,
+    ) -> StorageResult:
+        """Safely recreate a collection by deleting old one first.
+
+        Args:
+            collection_name: Name of collection to recreate
+            vector_size: Size of dense vectors
+            distance_metric: Distance metric for vectors
+            enable_bm25: Whether to enable BM25 sparse vectors
+
+        Returns:
+            StorageResult indicating success or failure
+        """
+        start_time = time.time()
+
+        try:
+            # Delete if exists (ignore errors if collection doesn't exist)
+            if self.collection_exists(collection_name):
+                logger.info(f"Deleting existing collection {collection_name}")
+                delete_result = self.delete_collection(collection_name)
+                if not delete_result.success:
+                    # Only fail if it's not a "collection doesn't exist" error
+                    if "does not exist" not in str(delete_result.errors):
+                        return delete_result
+
+            # Recreate with appropriate configuration
+            if enable_bm25:
+                logger.info(f"Creating collection {collection_name} with BM25 support")
+                return self.create_collection_with_sparse_vectors(
+                    collection_name=collection_name,
+                    dense_vector_size=vector_size,
+                    distance_metric=distance_metric,
+                )
+            else:
+                logger.info(f"Creating collection {collection_name} without BM25")
+                return self.create_collection(
+                    collection_name=collection_name,
+                    vector_size=vector_size,
+                    distance_metric=distance_metric,
+                )
+
+        except Exception as e:
+            return StorageResult(
+                success=False,
+                operation="recreate_collection",
+                processing_time=time.time() - start_time,
+                errors=[f"Failed to recreate collection: {e}"],
             )
 
     def upsert_points(
@@ -557,7 +611,24 @@ class QdrantStore(ManagedVectorStore, ContentHashMixin):
 
             except ResponseHandlingException as e:
                 error_msg = str(e)
-                if "timed out" in error_msg.lower():
+
+                # Check for WAL corruption errors - these are unrecoverable
+                if "segment creator" in error_msg.lower() or "can't write wal" in error_msg.lower():
+                    logger.error(f"🚨 WAL CORRUPTION DETECTED in {collection_name}")
+                    logger.error("Collection needs recreation - cannot retry")
+                    return StorageResult(
+                        success=False,
+                        operation="upsert_batch",
+                        items_failed=len(batch),
+                        processing_time=time.time() - start_time,
+                        errors=[
+                            f"WAL corruption detected: {error_msg}",
+                            f"Collection '{collection_name}' must be deleted and recreated",
+                            "Run with --recreate flag or manually delete the collection"
+                        ],
+                    )
+
+                elif "timed out" in error_msg.lower():
                     logger.warning(
                         f"⚠️ Batch {batch_num} attempt {attempt + 1} timed out"
                     )

@@ -12,10 +12,13 @@ from typing import Any
 
 from .analysis.entities import Entity, EntityChunk, Relation
 from .analysis.parser import ParserRegistry
+from .categorization import FileCategorizationSystem, ProcessingTier
 from .config import IndexerConfig
 from .embeddings.base import Embedder
 from .indexer_logging import get_logger
 from .storage.base import VectorStore
+from .parallel_processor import ParallelFileProcessor
+from .progress_bar import BatchProgressBar
 
 logger = get_logger()
 
@@ -136,6 +139,20 @@ class CoreIndexer:
         self.project_path = project_path
         self.logger = get_logger()
 
+        # Initialize file categorization system
+        self.categorizer = FileCategorizationSystem()
+
+        # Initialize parallel processor if enabled
+        self.parallel_processor = None
+        if config.use_parallel_processing:
+            max_workers = config.max_parallel_workers if config.max_parallel_workers > 0 else None
+            self.parallel_processor = ParallelFileProcessor(
+                max_workers=max_workers,
+                memory_limit_mb=2000,  # Same as main process limit
+                logger=self.logger
+            )
+            self.logger.info(f"🚀 Parallel processing enabled with {self.parallel_processor.current_workers} workers")
+
         # Enhance exclusion patterns with ExclusionManager if available
         if EXCLUSION_MANAGER_AVAILABLE:
             try:
@@ -191,6 +208,51 @@ class CoreIndexer:
                 return False
 
         return batch_callback
+
+    def _parse_light_tier(self, file_path: Path, global_entity_names: set[str]) -> Any:
+        """
+        Light parsing for generated files and type definitions.
+        Extracts only metadata and type definitions without relations or deep analysis.
+        """
+        from .analysis.parser import ParserResult
+        from .analysis.entities import Entity, EntityType
+
+        try:
+            # Get basic file info
+            relative_path = file_path.relative_to(self.project_path)
+
+            # Create a simple entity for the file
+            entity = Entity(
+                name=file_path.stem,
+                entity_type=EntityType.FILE,  # Use EntityType enum
+                observations=[
+                    f"Generated/type definition file: {file_path.suffix}",
+                    f"Size: {file_path.stat().st_size} bytes",
+                    "Light processing applied - relations skipped"
+                ],
+                file_path=file_path,
+                line_number=1
+            )
+
+            # Return simplified parse result - no 'success' or 'language' fields
+            return ParserResult(
+                file_path=file_path,
+                entities=[entity],
+                relations=[],  # No relations for light tier
+                implementation_chunks=[],  # No implementations for light tier
+                errors=[],  # Empty errors means success=True
+                warnings=[]
+            )
+        except Exception as e:
+            self.logger.debug(f"Light parsing failed for {file_path}: {e}")
+            return ParserResult(
+                file_path=file_path,
+                entities=[],
+                relations=[],
+                implementation_chunks=[],
+                errors=[str(e)],  # Add error to errors list
+                warnings=[]
+            )
 
     def _should_use_batch_processing(self, file_path: Path) -> bool:
         """Determine if a file should use batch processing during parsing."""
@@ -411,6 +473,29 @@ class CoreIndexer:
         """Index an entire project with automatic incremental detection."""
         start_time = time.time()
 
+        # Initialize collection if it doesn't exist to avoid warnings
+        try:
+            if not self.vector_store.collection_exists(collection_name):
+                if verbose:
+                    self.logger.info(f"Creating collection '{collection_name}'...")
+                # Create collection with appropriate vector size
+                from qdrant_client.models import VectorParams, Distance
+                vector_size = 1024  # Voyage-3 default size
+                self.vector_store.client.create_collection(
+                    collection_name=collection_name,
+                    vectors_config=VectorParams(
+                        size=vector_size,
+                        distance=Distance.COSINE
+                    ),
+                    optimizers_config={"indexing_threshold": 20}
+                )
+                if verbose:
+                    self.logger.info(f"✅ Collection '{collection_name}' created")
+        except Exception as e:
+            # If collection already exists or any other error, continue
+            if verbose:
+                self.logger.debug(f"Collection check/creation: {e}")
+
         # Auto-detect incremental mode based on state file existence (like watcher pattern)
         state_file = self._get_state_file(collection_name)
         incremental = state_file.exists()
@@ -475,19 +560,82 @@ class CoreIndexer:
 
             self.logger.info(f"Found {len(files_to_process)} files to process")
 
+            # Analyze file tiers for optimization
+            tier_stats = self.categorizer.get_tier_stats(files_to_process)
+            self.logger.info(
+                f"📂 File categorization: {tier_stats['light']} light / "
+                f"{tier_stats['standard']} standard / {tier_stats['deep']} deep files"
+            )
+
             # Process files in batches with progressive disclosure support
-            batch_size = self.config.batch_size
+            # Use adaptive batch sizing for large projects - start small and ramp up
+            if self.config.batch_size_ramp_up and not incremental:
+                # For initial indexing, start with smaller batches
+                effective_batch_size = self.config.initial_batch_size
+                self.logger.info(f"Using adaptive batch sizing: starting with {effective_batch_size}, ramping up to {self.config.batch_size}")
+            else:
+                # For incremental or when ramp-up is disabled, use full batch size
+                effective_batch_size = self.config.batch_size
+
             all_entities = []
             all_relations = []
             all_implementation_chunks = []
             all_processed_files = []
+            successful_batches = 0
 
-            for i in range(0, len(files_to_process), batch_size):
-                batch = files_to_process[i : i + batch_size]
-                batch_num = (i // batch_size) + 1
-                total_batches = (len(files_to_process) + batch_size - 1) // batch_size
+            # Add progress tracking and memory monitoring
+            total_files = len(files_to_process)
+            files_completed = 0
+            start_batch_time = time.time()
+
+            # Import memory monitoring
+            import gc
+            import psutil
+            import os
+
+            # Get process for memory monitoring
+            process = psutil.Process(os.getpid())
+            initial_memory = process.memory_info().rss / 1024 / 1024  # MB
+            memory_threshold_mb = 2000  # Reduce batch size if we exceed 2GB
+
+            for i in range(0, len(files_to_process), effective_batch_size):
+                batch = files_to_process[i : i + effective_batch_size]
+                batch_num = (i // effective_batch_size) + 1
+                # Recalculate total batches based on current effective_batch_size
+                remaining_files = len(files_to_process) - i
+                total_batches = batch_num + ((remaining_files - len(batch) + effective_batch_size - 1) // effective_batch_size if remaining_files > len(batch) else 0)
+
+                # Check memory usage and adjust batch size if needed
+                current_memory = process.memory_info().rss / 1024 / 1024  # MB
+                memory_used = current_memory - initial_memory
+
+                if current_memory > memory_threshold_mb and effective_batch_size > 2:
+                    old_size = effective_batch_size
+                    effective_batch_size = max(2, effective_batch_size // 2)  # Halve batch size, minimum 2
+                    self.logger.warning(
+                        f"⚠️ High memory usage ({current_memory:.0f}MB), reducing batch size: {old_size} → {effective_batch_size}"
+                    )
+                    # Force immediate garbage collection
+                    gc.collect()
+
+                # Calculate progress percentage
+                progress_pct = (files_completed / total_files * 100) if total_files > 0 else 0
+                elapsed_time = time.time() - start_batch_time
+                files_per_sec = files_completed / elapsed_time if elapsed_time > 0 else 0
+                eta_seconds = (total_files - files_completed) / files_per_sec if files_per_sec > 0 else 0
+                eta_str = f"{int(eta_seconds // 60)}m {int(eta_seconds % 60)}s" if eta_seconds > 0 else "calculating..."
+
+                # Count light tier files in batch
+                light_count = sum(1 for f in batch if self.categorizer.categorize_file(f).value == "light")
+                tier_info = f" ({light_count} light)" if light_count > 0 else ""
+
                 self.logger.info(
-                    f"Processing batch {batch_num}/{total_batches} ({len(batch)} files)"
+                    f"📊 Batch {batch_num}/{total_batches}{tier_info} | "
+                    f"Progress: {files_completed}/{total_files} ({progress_pct:.1f}%) | "
+                    f"Speed: {files_per_sec:.1f} files/s | "
+                    f"ETA: {eta_str} | "
+                    f"Memory: {current_memory:.0f}MB | "
+                    f"Batch: {effective_batch_size}"
                 )
 
                 (
@@ -522,10 +670,30 @@ class CoreIndexer:
                             break
 
                 # Update metrics
-                result.files_processed += len(
-                    [f for f in batch if str(f) not in batch_errors]
-                )
+                batch_successful = len([f for f in batch if str(f) not in batch_errors])
+                result.files_processed += batch_successful
                 result.files_failed += len(batch_errors)
+                files_completed += len(batch)  # Update progress counter
+
+                # Adaptive batch sizing - ramp up after successful batches
+                if self.config.batch_size_ramp_up and not incremental and len(batch_errors) == 0:
+                    successful_batches += 1
+                    # Ramp up batch size after every 2 successful batches, up to the configured max
+                    if successful_batches % 2 == 0 and effective_batch_size < self.config.batch_size:
+                        old_size = effective_batch_size
+                        effective_batch_size = min(effective_batch_size * 2, self.config.batch_size)
+                        self.logger.info(f"📈 Ramping up batch size: {old_size} → {effective_batch_size}")
+
+                # Force garbage collection after each batch to free memory
+                import gc
+                gc.collect()
+
+                # Clear batch data to free memory immediately
+                batch_entities.clear()
+                batch_relations.clear()
+                batch_implementation_chunks.clear()
+
+                self.logger.debug(f"🧹 Memory cleanup performed after batch {batch_num}")
 
             # Apply in-memory orphan filtering before storage to avoid wasted embeddings
             if all_relations:
@@ -1288,24 +1456,9 @@ class CoreIndexer:
         Returns:
             Tuple of (entities, relations, implementation_chunks, errors, successfully_processed_files)
         """
-        # DEBUG: Print parameters to compare CLI vs Watcher calls
-        if self.logger:
-            self.logger.debug("🚨 DEBUG _process_file_batch CALL:")
-            self.logger.debug(f"🚨   files: {[str(f) for f in files]}")
-            self.logger.debug(f"🚨   collection_name: {collection_name}")
-            self.logger.debug(f"🚨   verbose: {_verbose}")
-
-            # Check if collection has existing data
-            try:
-                if hasattr(self.vector_store, "backend"):
-                    qdrant_client = self.vector_store.backend.client
-                else:
-                    qdrant_client = self.vector_store.client
-
-                total_points = qdrant_client.count(collection_name).count
-                self.logger.debug(f"🚨   existing_points_in_collection: {total_points}")
-            except Exception as e:
-                self.logger.debug(f"🚨   existing_points_check_failed: {e}")
+        # Only log batch info in verbose mode
+        if _verbose and self.logger:
+            self.logger.debug(f"Processing batch of {len(files)} files for {collection_name}")
 
         all_entities: list[Entity] = []
         all_relations: list[Relation] = []
@@ -1331,7 +1484,14 @@ class CoreIndexer:
                         "MODIFIED" if current_hash != previous_hash else "UNCHANGED"
                     )
 
-                self.logger.debug(f"Processing file [{file_status}]: {relative_path}")
+                # Only log file processing for non-standard tiers
+                processing_config = self.categorizer.get_processing_config(file_path)
+                tier = processing_config["tier"]
+
+                if tier != "standard":
+                    self.logger.debug(f"Processing [{file_status}] {tier} tier: {relative_path}")
+                elif file_status != "UNCHANGED":
+                    self.logger.debug(f"Processing [{file_status}]: {relative_path}")
 
                 # Check for batch processing (streaming for large JSON files)
                 batch_callback = None
@@ -1351,9 +1511,16 @@ class CoreIndexer:
                 global_entity_names: set[str] = getattr(
                     self, "_cached_global_entities", set()
                 )
-                result = self.parser_registry.parse_file(
-                    file_path, batch_callback, global_entity_names=global_entity_names
-                )
+
+                # Parse file with tier-appropriate processing
+                if tier == "light":
+                    # For light tier, we'll get a simplified result
+                    result = self._parse_light_tier(file_path, global_entity_names)
+                else:
+                    # Standard and deep tiers use normal parsing
+                    result = self.parser_registry.parse_file(
+                        file_path, batch_callback, global_entity_names=global_entity_names
+                    )
 
                 # DEBUG: Show parse result details
                 # self.logger.debug(f"🔍 PARSE RESULT DEBUG for {file_path.name}:")
@@ -1371,31 +1538,46 @@ class CoreIndexer:
                     all_entities.extend(result.entities)
                     all_relations.extend(result.relations)
                     all_implementation_chunks.extend(result.implementation_chunks or [])
-                    successfully_processed_files.append(
-                        file_path
-                    )  # Track successful processing
+                    successfully_processed_files.append(file_path)
 
-                    # 🔧 DEBUG: Log entities extracted by parser for watcher bug debugging
-                    if self.logger:
-                        entity_details = [f"{getattr(e, 'entity_type', 'unknown')}:{e.name}" for e in result.entities]
-                        self.logger.debug(f"🔧 PARSER OUTPUT: {file_path.name}")
-                        self.logger.debug(f"🔧   Entities extracted: {entity_details}")
-                        self.logger.debug(f"🔧   Total: {len(result.entities)} entities, {len(result.relations)} relations, {len(result.implementation_chunks or [])} chunks")
-
-                    self.logger.info(
-                        f"  Found {len(result.entities)} entities, {len(result.relations)} relations, {len(result.implementation_chunks or [])} implementation chunks"
-                    )
+                    # Only log if we found something meaningful (reduce noise)
+                    if result.entities or result.relations:
+                        self.logger.info(
+                            f"  Found {len(result.entities)} entities, {len(result.relations)} relations"
+                        )
                 else:
-                    error_msg = f"Failed to parse {relative_path}"
-                    errors.append(error_msg)
-                    self.logger.warning(f"  {error_msg}")
-                    logger.error(f"❌ Parse error in {file_path}: Parse failure")
+                    # Check if it's a syntax error - if so, use fallback parser
+                    error_str = ', '.join(result.errors) if result.errors else 'Unknown error'
+                    if 'syntax' in error_str.lower() or 'parse' in error_str.lower():
+                        self.logger.debug(f"  Syntax error detected, using fallback parser for {relative_path}")
+
+                        # Use fallback parser to extract what we can
+                        from .fallback_parser import FallbackParser
+                        fallback_result = FallbackParser.parse_with_fallback(file_path, error_str)
+
+                        if fallback_result.entities:
+                            all_entities.extend(fallback_result.entities)
+                            all_relations.extend(fallback_result.relations)
+                            all_implementation_chunks.extend(fallback_result.implementation_chunks or [])
+                            successfully_processed_files.append(file_path)
+
+                            self.logger.info(
+                                f"  Fallback parser recovered {len(fallback_result.entities)} entities, "
+                                f"{len(fallback_result.relations)} relations from {relative_path}"
+                            )
+                        else:
+                            errors.append(f"Failed to parse {relative_path} even with fallback: {error_str}")
+                            self.logger.debug(f"  Fallback parsing also failed for {relative_path}")
+                    else:
+                        # Non-syntax error, regular failure
+                        errors.append(f"Failed to parse {relative_path}: {error_str}")
+                        if result.errors:
+                            self.logger.debug(f"  Parse failed: {error_str}")
 
             except Exception as e:
                 error_msg = f"Error processing {file_path}: {e}"
                 errors.append(error_msg)
-                self.logger.error(f"  {error_msg}")
-                logger.error(f"❌ Processing error in {file_path}: {e}")
+                self.logger.debug(f"  Processing error: {e}")
 
         return (
             all_entities,
