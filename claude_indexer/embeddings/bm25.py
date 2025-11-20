@@ -36,7 +36,7 @@ class BM25Embedder(Embedder):
         b: float = 0.75,
         delta: float = 0.0,
         method: str = "robertson",
-        corpus_size_limit: int = 100000,
+        corpus_size_limit: int = 10000,  # Reduced from 100000 to prevent OOM
         cache_dir: str | None = None,
         **kwargs: Any,  # noqa: ARG002
     ) -> None:
@@ -91,10 +91,21 @@ class BM25Embedder(Embedder):
     def _get_corpus_hash(self, corpus: list[str]) -> str:
         """Generate hash of corpus for caching."""
         start_time = time.time()
-        corpus_str = "\n".join(sorted(corpus))
-        hash_result = hashlib.sha256(corpus_str.encode()).hexdigest()[:16]
+        # Use a more efficient hashing approach for large corpora
+        # Hash first 100 docs + last 100 docs + corpus size for uniqueness
+        sample_size = min(100, len(corpus) // 2)
+        if len(corpus) <= 200:
+            # Small corpus - hash everything
+            corpus_sample = corpus
+        else:
+            # Large corpus - hash representative sample
+            corpus_sample = corpus[:sample_size] + corpus[-sample_size:]
+
+        # Include corpus size and sample in hash
+        hash_data = f"{len(corpus)}::{len(corpus_sample)}::" + "\n".join(sorted(corpus_sample[:200]))
+        hash_result = hashlib.sha256(hash_data.encode()).hexdigest()[:16]
         hash_time = time.time() - start_time
-        logger.debug(f"🐌 SHA256 corpus hashing took {hash_time:.3f}s for {len(corpus)} docs")
+        logger.debug(f"✅ Optimized corpus hashing took {hash_time:.3f}s for {len(corpus)} docs (sampled {len(corpus_sample)})")
         return hash_result
 
     def _save_model_cache(self, cache_key: str) -> None:
@@ -177,20 +188,38 @@ class BM25Embedder(Embedder):
     def _fit_corpus(self, corpus: list[str]) -> None:
         """Fit BM25 model on corpus."""
         start_time = time.time()
-        
+
+        # Limit corpus size to prevent memory issues
+        if len(corpus) > self.corpus_size_limit:
+            logger.warning(
+                f"Corpus size {len(corpus)} exceeds limit {self.corpus_size_limit}, "
+                f"using first {self.corpus_size_limit} documents for BM25 fitting"
+            )
+            corpus = corpus[:self.corpus_size_limit]
+
         # Check cache first
         corpus_hash = self._get_corpus_hash(corpus)
         cache_key = self._get_cache_key(corpus_hash)
-        
+
         if self._load_model_cache(cache_key):
             logger.debug(f"Using cached BM25 model for {len(corpus)} documents")
             return
-        
-        # Preprocess corpus
+
+        # Preprocess corpus in batches to manage memory
         tokenize_start = time.time()
-        tokenized_corpus = [self._preprocess_text(text) for text in corpus]
+        tokenized_corpus = []
+        batch_size = 1000
+        for i in range(0, len(corpus), batch_size):
+            batch = corpus[i:i+batch_size]
+            tokenized_batch = [self._preprocess_text(text) for text in batch]
+            tokenized_corpus.extend(tokenized_batch)
+
+            # Log progress for large corpora
+            if len(corpus) > 5000 and (i + batch_size) % 5000 == 0:
+                logger.debug(f"Tokenized {min(i + batch_size, len(corpus))}/{len(corpus)} documents")
+
         tokenize_time = time.time() - tokenize_start
-        logger.debug(f"🐌 Corpus tokenization took {tokenize_time:.3f}s for {len(corpus)} docs")
+        logger.debug(f"✅ Optimized tokenization took {tokenize_time:.3f}s for {len(corpus)} docs")
         
         # Initialize BM25 model
         self.model = bm25s.BM25(
@@ -242,19 +271,36 @@ class BM25Embedder(Embedder):
         """Pre-calculate document frequencies for all vocabulary terms to avoid O(n²) recalculation."""
         if not self.vocabulary or not self.corpus:
             return
-            
+
         calc_start = time.time()
         self._doc_freq_cache.clear()
-        
-        # Tokenize corpus once
-        tokenized_corpus = [set(self._preprocess_text(doc)) for doc in self.corpus]
-        
-        # Calculate document frequency for each vocabulary term
+
+        # More efficient approach: iterate documents once, count all terms
+        from collections import defaultdict
+        doc_freq_counts = defaultdict(int)
+
+        # Process documents in batches to manage memory
+        batch_size = 1000
+        for i in range(0, len(self.corpus), batch_size):
+            batch = self.corpus[i:i+batch_size]
+            for doc in batch:
+                # Get unique tokens for this document
+                doc_tokens = set(self._preprocess_text(doc))
+                # Increment count for each term appearing in doc
+                for token in doc_tokens:
+                    if token in self.vocabulary:
+                        doc_freq_counts[token] += 1
+
+        # Convert to regular dict for cache
+        self._doc_freq_cache = dict(doc_freq_counts)
+
+        # Ensure all vocabulary terms have an entry (even if 0)
         for term in self.vocabulary:
-            self._doc_freq_cache[term] = sum(1 for doc_tokens in tokenized_corpus if term in doc_tokens)
-            
+            if term not in self._doc_freq_cache:
+                self._doc_freq_cache[term] = 0
+
         calc_time = time.time() - calc_start
-        logger.debug(f"🚀 Pre-calculated doc frequencies in {calc_time:.3f}s for {len(self.vocabulary)} terms")
+        logger.debug(f"✅ Optimized doc frequency calculation in {calc_time:.3f}s for {len(self.vocabulary)} terms")
 
     def _generate_sparse_vector(self, text: str) -> list[float]:
         """Generate sparse vector for a single text using proper IDF-based term weighting."""
