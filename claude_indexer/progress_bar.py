@@ -94,6 +94,13 @@ class ModernProgressBar:
         # Render the bar
         self._render()
 
+    def complete(self):
+        """Mark the progress bar as complete."""
+        self.state.current = self.state.total
+        self._render()
+        sys.stdout.write("\n")
+        sys.stdout.flush()
+
     def _render(self):
         """Render the progress bar to terminal."""
         # Calculate percentage

@@ -188,9 +188,20 @@ class VoyageEmbedder(TiktokenMixin, RetryableEmbedder):
         token_limit = model_limits.get(self.model, 120_000)  # Conservative default
         text_count_limit = 1000  # Voyage API batch size limit
 
+        # Import progress bar if available
+        try:
+            from ..progress_bar import ModernProgressBar
+            progress_bar = ModernProgressBar(
+                total_items=len(texts),
+                description="Generating embeddings"
+            )
+        except ImportError:
+            progress_bar = None
+
         results: list[EmbeddingResult] = []
         current_batch: list[str] = []
         current_tokens = 0
+        texts_processed = 0
 
         for text in texts:
             text_tokens = self._estimate_tokens(text)
@@ -203,6 +214,12 @@ class VoyageEmbedder(TiktokenMixin, RetryableEmbedder):
                 # Process current batch
                 batch_results = self._embed_batch(current_batch)
                 results.extend(batch_results)
+
+                # Update progress
+                texts_processed += len(current_batch)
+                if progress_bar:
+                    progress_bar.update(texts_processed)
+
                 current_batch = []
                 current_tokens = 0
 
@@ -213,6 +230,15 @@ class VoyageEmbedder(TiktokenMixin, RetryableEmbedder):
         if current_batch:
             batch_results = self._embed_batch(current_batch)
             results.extend(batch_results)
+
+            # Update final progress
+            texts_processed += len(current_batch)
+            if progress_bar:
+                progress_bar.update(texts_processed)
+
+        # Complete progress bar
+        if progress_bar:
+            progress_bar.complete()
 
         return results
 

@@ -207,6 +207,17 @@ class BM25Embedder(Embedder):
 
         # Preprocess corpus in batches to manage memory
         tokenize_start = time.time()
+
+        # Import progress bar if available
+        try:
+            from ..progress_bar import ModernProgressBar
+            progress_bar = ModernProgressBar(
+                total_items=len(corpus),
+                description="Tokenizing BM25 corpus"
+            )
+        except ImportError:
+            progress_bar = None
+
         tokenized_corpus = []
         batch_size = 1000
         for i in range(0, len(corpus), batch_size):
@@ -214,9 +225,17 @@ class BM25Embedder(Embedder):
             tokenized_batch = [self._preprocess_text(text) for text in batch]
             tokenized_corpus.extend(tokenized_batch)
 
-            # Log progress for large corpora
-            if len(corpus) > 5000 and (i + batch_size) % 5000 == 0:
+            # Update progress
+            if progress_bar:
+                progress_bar.update(min(i + batch_size, len(corpus)))
+
+            # Log progress for large corpora (fallback if no progress bar)
+            elif len(corpus) > 5000 and (i + batch_size) % 5000 == 0:
                 logger.debug(f"Tokenized {min(i + batch_size, len(corpus))}/{len(corpus)} documents")
+
+        # Complete progress bar
+        if progress_bar:
+            progress_bar.complete()
 
         tokenize_time = time.time() - tokenize_start
         logger.debug(f"✅ Optimized tokenization took {tokenize_time:.3f}s for {len(corpus)} docs")
