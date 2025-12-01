@@ -593,11 +593,11 @@ IMPORTANT: Return ONLY the JSON object, no explanatory text."""
     def call_claude_cli(self, prompt: str) -> tuple[bool, str, dict[str, Any]]:
         """Call Claude CLI for comprehensive code quality analysis."""
         try:
-            # Use .claude directory for isolated sessions
-            claude_dir = (
-                self.project_root / ".claude"
+            # Use project root so Claude CLI can find .mcp.json config
+            work_dir = (
+                self.project_root
                 if self.project_root
-                else Path.cwd() / ".claude"
+                else Path.cwd()
             )
 
             # Allow specific MCP memory tools plus read-only analysis tools
@@ -620,7 +620,7 @@ IMPORTANT: Return ONLY the JSON object, no explanatory text."""
                 capture_output=True,
                 text=True,
                 timeout=60,
-                cwd=str(claude_dir),
+                cwd=str(work_dir),
             )
 
             if result.returncode != 0:
