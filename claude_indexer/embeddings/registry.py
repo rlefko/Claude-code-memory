@@ -1,5 +1,6 @@
 """Registry for managing embedder instances and configurations."""
 
+from pathlib import Path
 from typing import Any
 
 from .base import CachingEmbedder, Embedder, RetryableEmbedder
@@ -29,9 +30,21 @@ class EmbedderRegistry:
         self._embedders[name] = embedder_class
 
     def create_embedder(
-        self, provider: str, config: dict[str, Any], enable_caching: bool = True
+        self,
+        provider: str,
+        config: dict[str, Any],
+        enable_caching: bool = True,
+        cache_dir: Path | str | None = None,
     ) -> Embedder:
-        """Create an embedder instance from configuration."""
+        """Create an embedder instance from configuration.
+
+        Args:
+            provider: Embedder provider name (openai, voyage, bm25)
+            config: Provider-specific configuration
+            enable_caching: Whether to enable caching
+            cache_dir: Optional directory for persistent disk cache.
+                      If provided, enables two-tier caching (memory + disk).
+        """
         if provider not in self._embedders:
             available = list(self._embedders.keys())
             raise ValueError(
@@ -47,7 +60,20 @@ class EmbedderRegistry:
             # Wrap with caching if enabled
             if enable_caching:
                 cache_size = config.get("cache_size", 10000)
-                embedder = CachingEmbedder(embedder, max_cache_size=cache_size)
+
+                if cache_dir is not None:
+                    # Use two-tier caching (memory + persistent disk)
+                    model_name = config.get("model", provider)
+                    embedder = CachingEmbedder.with_persistent_cache(
+                        embedder=embedder,
+                        cache_dir=cache_dir,
+                        model_name=model_name,
+                        max_memory_cache=cache_size,
+                        max_disk_cache_mb=500,
+                    )
+                else:
+                    # Use memory-only caching
+                    embedder = CachingEmbedder(embedder, max_cache_size=cache_size)
 
             return embedder
 
@@ -84,8 +110,17 @@ class EmbedderRegistry:
         }
 
 
-def create_embedder_from_config(config: Any) -> Embedder:
-    """Create embedder from configuration (IndexerConfig or dict)."""
+def create_embedder_from_config(
+    config: Any,
+    cache_dir: Path | str | None = None,
+) -> Embedder:
+    """Create embedder from configuration (IndexerConfig or dict).
+
+    Args:
+        config: IndexerConfig object or dict with embedder settings
+        cache_dir: Optional directory for persistent disk cache.
+                  If provided, enables two-tier caching (memory + disk).
+    """
     registry = EmbedderRegistry()
 
     # Handle both IndexerConfig objects and dicts
@@ -93,6 +128,11 @@ def create_embedder_from_config(config: Any) -> Embedder:
         # IndexerConfig object
         provider = config.embedding_provider
         enable_caching = True  # Default for IndexerConfig
+
+        # Try to get cache_dir from config if not provided
+        if cache_dir is None and hasattr(config, "project_path"):
+            cache_dir = Path(config.project_path) / ".index_cache"
+
         if provider == "voyage":
             provider_config = {
                 "api_key": config.voyage_api_key,
@@ -114,13 +154,16 @@ def create_embedder_from_config(config: Any) -> Embedder:
         # Dict config (backward compatibility)
         provider = config.get("provider", "openai")
         enable_caching = config.get("enable_caching", True)
+        cache_dir = config.get("cache_dir", cache_dir)
         provider_config = {
             k: v
             for k, v in config.items()
-            if k not in ["provider", "enable_caching", "cache_size"]
+            if k not in ["provider", "enable_caching", "cache_size", "cache_dir"]
         }
 
-    return registry.create_embedder(provider, provider_config, enable_caching)
+    return registry.create_embedder(
+        provider, provider_config, enable_caching, cache_dir=cache_dir
+    )
 
 
 # For backward compatibility

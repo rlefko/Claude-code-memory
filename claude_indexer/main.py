@@ -71,12 +71,16 @@ def _create_indexer_components(
                 f"⚙️  Voyage model: {getattr(config, 'voyage_model', 'NOT_SET')}"
             )
 
+        # Create cache directory for persistent embedding cache
+        cache_dir = project / ".index_cache"
+
         embedder = create_embedder_from_config(
             {
                 "provider": provider,
                 "api_key": api_key,
                 "model": model,
                 "enable_caching": True,
+                "cache_dir": cache_dir,
             }
         )
 

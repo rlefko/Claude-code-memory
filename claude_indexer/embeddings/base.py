@@ -3,9 +3,13 @@
 import time
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Any, cast
+from pathlib import Path
+from typing import TYPE_CHECKING, Any, cast
 
 from ..indexer_logging import get_logger
+
+if TYPE_CHECKING:
+    from .cache import PersistentEmbeddingCache
 
 try:
     from tiktoken import Encoding
@@ -247,12 +251,61 @@ class RetryableEmbedder(Embedder):
 
 
 class CachingEmbedder(Embedder):
-    """Wrapper that adds caching to any embedder."""
+    """Wrapper that adds two-tier caching (memory + persistent disk) to any embedder.
 
-    def __init__(self, embedder: Embedder, max_cache_size: int = 10000):
+    Caching hierarchy:
+    1. In-memory cache (fastest, volatile)
+    2. Persistent disk cache (fast, survives restarts)
+    3. API call (slow, rate-limited)
+    """
+
+    def __init__(
+        self,
+        embedder: Embedder,
+        max_cache_size: int = 10000,
+        persistent_cache: "PersistentEmbeddingCache | None" = None,
+    ):
         self.embedder = embedder
         self.max_cache_size = max_cache_size
         self._cache: dict[str, EmbeddingResult] = {}
+        self._persistent_cache = persistent_cache
+        self.logger = get_logger()
+
+        # Statistics
+        self._memory_hits = 0
+        self._disk_hits = 0
+        self._api_calls = 0
+
+    @classmethod
+    def with_persistent_cache(
+        cls,
+        embedder: Embedder,
+        cache_dir: Path | str,
+        model_name: str = "default",
+        max_memory_cache: int = 10000,
+        max_disk_cache_mb: int = 500,
+    ) -> "CachingEmbedder":
+        """Create CachingEmbedder with persistent disk cache enabled.
+
+        Args:
+            embedder: The underlying embedder to wrap
+            cache_dir: Directory to store persistent cache
+            model_name: Model identifier for cache isolation
+            max_memory_cache: Max entries in memory cache
+            max_disk_cache_mb: Max size of disk cache in MB
+        """
+        from .cache import PersistentEmbeddingCache
+
+        persistent = PersistentEmbeddingCache(
+            cache_dir=cache_dir,
+            max_size_mb=max_disk_cache_mb,
+            model_name=model_name,
+        )
+        return cls(
+            embedder=embedder,
+            max_cache_size=max_memory_cache,
+            persistent_cache=persistent,
+        )
 
     def _get_cache_key(self, text: str) -> str:
         """Generate cache key for text."""
@@ -261,7 +314,7 @@ class CachingEmbedder(Embedder):
         return hashlib.sha256(text.encode("utf-8")).hexdigest()[:16]
 
     def _add_to_cache(self, text: str, result: EmbeddingResult) -> None:
-        """Add result to cache with size management."""
+        """Add result to both memory and persistent cache."""
         if len(self._cache) >= self.max_cache_size:
             # Remove oldest entries (simple FIFO)
             keys_to_remove = list(self._cache.keys())[: len(self._cache) // 2]
@@ -271,13 +324,46 @@ class CachingEmbedder(Embedder):
         cache_key = self._get_cache_key(text)
         self._cache[cache_key] = result
 
+        # Also save to persistent cache
+        if self._persistent_cache is not None and result.embedding:
+            self._persistent_cache.set(cache_key, result.embedding, result.dimension)
+
+    def _get_from_persistent(self, cache_key: str, text: str) -> EmbeddingResult | None:
+        """Try to get embedding from persistent cache and wrap as EmbeddingResult."""
+        if self._persistent_cache is None:
+            return None
+
+        embedding = self._persistent_cache.get(cache_key)
+        if embedding is None:
+            return None
+
+        # Reconstruct EmbeddingResult from cached embedding
+        result = EmbeddingResult(
+            text=text,
+            embedding=embedding,
+            model=self.embedder.get_model_info().get("model", "cached"),
+        )
+        return result
+
     def embed_text(self, text: str) -> EmbeddingResult:
-        """Embed text with caching."""
+        """Embed text with two-tier caching."""
         cache_key = self._get_cache_key(text)
 
+        # Tier 1: Memory cache
         if cache_key in self._cache:
+            self._memory_hits += 1
             return self._cache[cache_key]
 
+        # Tier 2: Persistent cache
+        persistent_result = self._get_from_persistent(cache_key, text)
+        if persistent_result is not None:
+            self._disk_hits += 1
+            # Promote to memory cache
+            self._cache[cache_key] = persistent_result
+            return persistent_result
+
+        # Tier 3: API call
+        self._api_calls += 1
         result = self.embedder.embed_text(text)
 
         if result.success:
@@ -286,30 +372,51 @@ class CachingEmbedder(Embedder):
         return result
 
     def embed_batch(self, texts: list[str], item_type: str = "general") -> list[EmbeddingResult]:
-        """Embed batch with caching.
+        """Embed batch with two-tier caching.
 
         Args:
             texts: List of text strings to embed
             item_type: Type of items being embedded (passed through to wrapped embedder)
         """
-        results = []
+        results: list[EmbeddingResult | None] = [None] * len(texts)
         uncached_texts = []
         uncached_indices = []
 
-        # Check cache for each text
+        # Check both cache tiers for each text
         for i, text in enumerate(texts):
             cache_key = self._get_cache_key(text)
-            if cache_key in self._cache:
-                results.append(self._cache[cache_key])
-            else:
-                results.append(
-                    cast(EmbeddingResult, None)
-                )  # Placeholder, will be replaced
-                uncached_texts.append(text)
-                uncached_indices.append(i)
 
-        # Embed uncached texts
+            # Tier 1: Memory cache
+            if cache_key in self._cache:
+                self._memory_hits += 1
+                results[i] = self._cache[cache_key]
+                continue
+
+            # Tier 2: Persistent cache
+            persistent_result = self._get_from_persistent(cache_key, text)
+            if persistent_result is not None:
+                self._disk_hits += 1
+                # Promote to memory cache
+                self._cache[cache_key] = persistent_result
+                results[i] = persistent_result
+                continue
+
+            # Need API call
+            uncached_texts.append(text)
+            uncached_indices.append(i)
+
+        # Log cache efficiency
+        total = len(texts)
+        cached = total - len(uncached_texts)
+        if total > 0 and cached > 0:
+            self.logger.debug(
+                f"Embedding batch: {cached}/{total} from cache "
+                f"({cached * 100 / total:.0f}% hit rate)"
+            )
+
+        # Tier 3: Embed uncached texts via API
         if uncached_texts:
+            self._api_calls += len(uncached_texts)
             uncached_results = self.embedder.embed_batch(uncached_texts, item_type=item_type)
 
             # Fill in results and update cache
@@ -320,15 +427,22 @@ class CachingEmbedder(Embedder):
                 if result.success:
                     self._add_to_cache(uncached_texts[i], result)
 
-        # At this point, all None placeholders have been replaced with EmbeddingResult objects
-        return results
+            # Flush persistent cache after batch
+            if self._persistent_cache is not None:
+                self._persistent_cache.flush()
+
+        # All placeholders should now be filled
+        return cast(list[EmbeddingResult], results)
 
     def get_model_info(self) -> dict[str, Any]:
         """Get model info from wrapped embedder."""
         info = self.embedder.get_model_info()
         info["caching_enabled"] = True
-        info["cache_size"] = len(self._cache)
-        info["max_cache_size"] = self.max_cache_size
+        info["memory_cache_size"] = len(self._cache)
+        info["max_memory_cache_size"] = self.max_cache_size
+        info["persistent_cache_enabled"] = self._persistent_cache is not None
+        if self._persistent_cache:
+            info["persistent_cache_stats"] = self._persistent_cache.get_stats()
         return info
 
     def get_max_tokens(self) -> int:
@@ -336,10 +450,26 @@ class CachingEmbedder(Embedder):
         return self.embedder.get_max_tokens()
 
     def get_cache_stats(self) -> dict[str, Any]:
-        """Get cache statistics."""
-        return {
-            "cache_size": len(self._cache),
-            "max_cache_size": self.max_cache_size,
-            "cache_hit_ratio": getattr(self, "_hit_count", 0)
-            / max(getattr(self, "_total_requests", 1), 1),
+        """Get comprehensive cache statistics."""
+        total_requests = self._memory_hits + self._disk_hits + self._api_calls
+        stats = {
+            "memory_cache_size": len(self._cache),
+            "max_memory_cache_size": self.max_cache_size,
+            "memory_hits": self._memory_hits,
+            "disk_hits": self._disk_hits,
+            "api_calls": self._api_calls,
+            "total_requests": total_requests,
+            "overall_hit_ratio": (self._memory_hits + self._disk_hits) / max(total_requests, 1),
+            "memory_hit_ratio": self._memory_hits / max(total_requests, 1),
+            "disk_hit_ratio": self._disk_hits / max(total_requests, 1),
         }
+
+        if self._persistent_cache:
+            stats["persistent_cache"] = self._persistent_cache.get_stats()
+
+        return stats
+
+    def flush_persistent_cache(self) -> None:
+        """Force flush persistent cache to disk."""
+        if self._persistent_cache:
+            self._persistent_cache.flush()

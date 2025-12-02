@@ -153,7 +153,9 @@ else:
             config_obj = load_config(Path(config) if config else None)
 
             # Create components using direct Qdrant integration
-            embedder = create_embedder_from_config(config_obj)
+            # Enable persistent embedding cache in project directory
+            cache_dir = Path(project_path) / ".index_cache"
+            embedder = create_embedder_from_config(config_obj, cache_dir=cache_dir)
 
             vector_store = create_store_from_config(
                 {
@@ -500,7 +502,9 @@ else:
                 sys.exit(1)
 
             # Create components using dynamic provider detection
-            embedder = create_embedder_from_config(config_obj)
+            # Enable persistent embedding cache
+            cache_dir = project_path / ".index_cache"
+            embedder = create_embedder_from_config(config_obj, cache_dir=cache_dir)
 
             vector_store = create_store_from_config(
                 {
@@ -600,7 +604,8 @@ else:
                     sys.exit(1)
 
                 # Create components for clearing
-                embedder = create_embedder_from_config(config_obj)
+                cache_dir = project_path / ".index_cache"
+                embedder = create_embedder_from_config(config_obj, cache_dir=cache_dir)
                 vector_store = create_store_from_config(
                     {
                         "backend": "qdrant",
@@ -992,7 +997,10 @@ else:
             config_obj = load_config(Path(config) if config else None)
 
             # Create components using dynamic provider detection
-            embedder = create_embedder_from_config(config_obj)
+            # Enable persistent cache for search queries
+            project_path = Path(project).resolve() if project else Path.cwd()
+            cache_dir = project_path / ".index_cache"
+            embedder = create_embedder_from_config(config_obj, cache_dir=cache_dir)
 
             vector_store = create_store_from_config(
                 {
@@ -1217,8 +1225,10 @@ else:
             # Load configuration
             config_obj = load_config(Path(config) if config else None)
 
-            # Create components
-            embedder = create_embedder_from_config(config_obj)
+            # Create components with persistent cache
+            project_path = Path(project).resolve() if project else Path.cwd()
+            cache_dir = project_path / ".index_cache"
+            embedder = create_embedder_from_config(config_obj, cache_dir=cache_dir)
             store = create_store_from_config(config_obj)
 
             # Import chat modules
@@ -1495,9 +1505,11 @@ Code Patterns: {", ".join(summary.code_patterns)}
     def chat_search(project, collection, verbose, quiet, config, query, limit):
         """Search indexed chat conversations by content."""
         try:
-            # Load configuration and create components
+            # Load configuration and create components with persistent cache
             config_obj = load_config(Path(config) if config else None)
-            embedder = create_embedder_from_config(config_obj)
+            project_path = Path(project).resolve() if project else Path.cwd()
+            cache_dir = project_path / ".index_cache"
+            embedder = create_embedder_from_config(config_obj, cache_dir=cache_dir)
             store = create_store_from_config(config_obj)
 
             if not quiet:
