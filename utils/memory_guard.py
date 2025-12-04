@@ -35,6 +35,7 @@ except ImportError:
 
 # Configuration
 DEBUG_ENABLED = os.getenv("MEMORY_GUARD_DEBUG", "true").lower() == "true"
+TIER2_ENABLED = os.getenv("MEMORY_GUARD_TIER2", "true").lower() == "true"
 
 
 class BypassManager:
@@ -142,7 +143,8 @@ class MemoryGuard:
         self.mcp_collection = "mcp__project-memory__"
         self.bypass_manager = None
         self.current_debug_log = None  # Selected once per hook execution for proper rotation
-        
+        self.tier2_detector = None  # Lazy-loaded Tier 2 fast duplicate detector
+
         # Attempt early project detection
         self._early_project_detection(hook_data)
         
@@ -430,6 +432,87 @@ class MemoryGuard:
         """Check if code contains NEW function or class definitions."""
         analysis = self.code_analyzer.analyze_code(code_info)
         return analysis["has_definitions"]
+
+    def _get_qdrant_collection_name(self) -> str | None:
+        """Extract Qdrant collection name from MCP collection prefix.
+
+        The MCP collection is formatted as 'mcp__collection-name-memory__'.
+        We extract 'collection-name-memory' for direct Qdrant access.
+        """
+        if self.mcp_collection and self.mcp_collection.startswith("mcp__"):
+            stripped = self.mcp_collection[5:]  # Remove 'mcp__' prefix
+            if stripped.endswith("__"):
+                stripped = stripped[:-2]  # Remove '__' suffix
+            return stripped
+        return None
+
+    def _run_tier2_check(
+        self, tool_name: str, tool_input: dict[str, Any], code_info: str
+    ) -> dict[str, Any] | None:
+        """Run Tier 2 fast duplicate detection. Returns result or None to escalate.
+
+        Tier 2 uses direct Qdrant search to bypass Claude CLI for clear-cut cases:
+        - Stage 1: Signature hash (O(1), <5ms) - Exact matches
+        - Stage 2: BM25 keyword (<30ms) - High keyword similarity (currently skipped)
+        - Stage 3: Semantic search (<100ms) - Vector similarity
+
+        Returns:
+            Result dict with 'decision' and 'reason' if definitive, None to escalate
+        """
+        if not TIER2_ENABLED:
+            return None
+
+        try:
+            from utils.fast_duplicate_detector import FastDuplicateDetector
+
+            if self.tier2_detector is None:
+                self.tier2_detector = FastDuplicateDetector.get_instance()
+
+            # Extract entities from the operation
+            entities = self.extractor.extract_entities_from_operation(tool_name, tool_input)
+            if not entities:
+                return None  # No entities to check - escalate to Tier 3
+
+            # Get collection name for Qdrant
+            collection = self._get_qdrant_collection_name()
+            if not collection:
+                return None  # Can't determine collection - escalate
+
+            file_path = tool_input.get("file_path", "")
+            result = self.tier2_detector.check_duplicate(
+                code_info=code_info,
+                entity_names=entities,
+                file_path=file_path,
+                collection=collection,
+                project_root=self.project_root,
+            )
+
+            # Log Tier 2 result
+            self.save_debug_info(
+                f"\nTIER 2 ({result.stage}): {result.decision} "
+                f"(confidence: {result.confidence:.2f}, latency: {result.latency_ms:.0f}ms)\n"
+                f"Reason: {result.reason}\n"
+            )
+
+            if result.decision == "escalate":
+                return None  # Fall through to Tier 3 (Claude CLI)
+
+            if result.decision == "block":
+                return {
+                    "decision": "block",
+                    "reason": f"🔄 DUPLICATE DETECTED (Tier 2, {result.latency_ms:.0f}ms): {result.reason}",
+                    "suppressOutput": False,
+                }
+
+            # Approved by Tier 2
+            return {
+                "reason": f"✅ Tier 2 APPROVED ({result.latency_ms:.0f}ms): {result.reason}",
+                "suppressOutput": False,
+            }
+
+        except Exception as e:
+            self.save_debug_info(f"TIER 2 ERROR: {e}\n")
+            return None  # Graceful degradation to Tier 3
 
     def get_code_info(self, tool_name: str, tool_input: dict[str, Any]) -> str:
         """Extract code information from the operation."""
@@ -808,21 +891,23 @@ IMPORTANT: Return ONLY the JSON object, no explanatory text."""
                 self.save_debug_info(f"\nOVERRIDE: {override_reason}\n")
                 return result
 
-            # Quick trivial operation check
+            # Quick trivial operation check (Tier 1)
             is_trivial, trivial_reason = self.is_trivial_operation(code_info)
             if is_trivial:
                 result["reason"] = f"🟢 {trivial_reason}"
-                self.save_debug_info(f"\nTRIVIAL OPERATION SKIPPED: {trivial_reason}\n")
+                self.save_debug_info(f"\nTIER 1 TRIVIAL OPERATION SKIPPED: {trivial_reason}\n")
                 return result
 
-            # Skip trivial operations only - test everything else
-            # Removed the new definitions filter - we want to test all non-trivial code
+            # Tier 2: Fast duplicate detection (bypasses Claude CLI for clear-cut cases)
+            tier2_result = self._run_tier2_check(tool_name, tool_input, code_info)
+            if tier2_result is not None:
+                return tier2_result
 
-            # Build prompt and check for duplicates
+            # Tier 3: Full Claude CLI analysis for ambiguous cases
             file_path = tool_input.get("file_path", "unknown")
             prompt = self.build_memory_search_prompt(file_path, tool_name, code_info)
 
-            # Call Claude CLI
+            # Call Claude CLI (Tier 3)
             should_block, reason, claude_response = self.call_claude_cli(prompt)
 
             # Set result
