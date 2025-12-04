@@ -1403,6 +1403,132 @@ class CoreIndexer:
 
         return new_vectored, modified_vectored, deleted_vectored
 
+    # Minimum batch size to justify parallelization overhead
+    # Process creation has ~200-500ms overhead per worker, and serialization adds more
+    # Only enable for very large batches where the total sequential time would exceed overhead
+    # Testing shows 50 files takes ~0.8s sequential vs ~1.6s parallel (0.49x speedup)
+    # So only parallelize for 100+ files where we expect sequential time > 2s
+    MIN_PARALLEL_BATCH = 100
+
+    def _dict_to_entity(self, data: dict) -> Entity:
+        """Convert dictionary from parallel worker back to Entity dataclass."""
+        from .analysis.entities import EntityType
+
+        return Entity(
+            name=data['name'],
+            entity_type=EntityType(data['entity_type']),
+            observations=data.get('observations', []),
+            file_path=Path(data['file_path']) if data.get('file_path') else None,
+            line_number=data.get('line_number'),
+            end_line_number=data.get('end_line_number'),
+            docstring=data.get('docstring'),
+            signature=data.get('signature'),
+            complexity_score=data.get('complexity_score'),
+            metadata=data.get('metadata', {}),
+        )
+
+    def _dict_to_relation(self, data: dict) -> Relation:
+        """Convert dictionary from parallel worker back to Relation dataclass."""
+        from .analysis.entities import RelationType
+
+        return Relation(
+            from_entity=data['from_entity'],
+            to_entity=data['to_entity'],
+            relation_type=RelationType(data['relation_type']),
+            context=data.get('context'),
+            confidence=data.get('confidence', 1.0),
+            metadata=data.get('metadata', {}),
+        )
+
+    def _dict_to_chunk(self, data: dict) -> EntityChunk:
+        """Convert dictionary from parallel worker back to EntityChunk dataclass."""
+        return EntityChunk(
+            id=data['id'],
+            entity_name=data['entity_name'],
+            chunk_type=data['chunk_type'],
+            content=data['content'],
+            metadata=data.get('metadata', {}),
+        )
+
+    def _process_files_parallel(
+        self, files: list[Path], collection_name: str, _verbose: bool = False
+    ) -> tuple[list[Entity], list[Relation], list[EntityChunk], list[str], list[Path]]:
+        """Process files using parallel workers for significant speedup.
+
+        Args:
+            files: List of files to process
+            collection_name: Name of the collection
+            _verbose: Enable verbose logging
+
+        Returns:
+            Tuple of (entities, relations, implementation_chunks, errors, successfully_processed_files)
+        """
+        self.logger.info(f"🚀 Starting parallel processing of {len(files)} files with {self.parallel_processor.current_workers} workers")
+
+        processing_config = {
+            'max_file_size': self.config.max_file_size,
+            'collection_name': collection_name,
+        }
+
+        # Run parallel processing
+        results = self.parallel_processor.process_files_parallel(
+            files, collection_name, processing_config
+        )
+
+        # Get tier stats for logging
+        tier_stats = self.parallel_processor.get_tier_stats(results)
+        self.logger.info(
+            f"📊 Parallel results: {tier_stats.get('standard', 0)} standard, "
+            f"{tier_stats.get('light', 0)} light, {tier_stats.get('error', 0)} errors"
+        )
+
+        # Convert results back to expected format
+        all_entities: list[Entity] = []
+        all_relations: list[Relation] = []
+        all_chunks: list[EntityChunk] = []
+        errors: list[str] = []
+        successful_files: list[Path] = []
+
+        for result in results:
+            file_path_str = result.get('file_path', '')
+
+            if result['status'] == 'success':
+                # Convert dicts back to dataclass objects
+                entities = [self._dict_to_entity(e) for e in result.get('entities', [])]
+                relations = [self._dict_to_relation(r) for r in result.get('relations', [])]
+                chunks = [self._dict_to_chunk(c) for c in result.get('chunks', [])]
+
+                all_entities.extend(entities)
+                all_relations.extend(relations)
+                all_chunks.extend(chunks)
+                successful_files.append(Path(file_path_str))
+
+                # Populate signature table for O(1) duplicate detection (Memory Guard Tier 2)
+                self._populate_signature_table(collection_name, entities, chunks)
+
+            elif result['status'] == 'skipped':
+                # Skipped files (too large) aren't errors but also aren't processed
+                reason = result.get('reason', 'Unknown')
+                self.logger.debug(f"  Skipped {file_path_str}: {reason}")
+
+            elif result['status'] == 'no_parser':
+                # No parser available - not an error, just unsupported file type
+                self.logger.debug(f"  No parser for {file_path_str}")
+
+            else:
+                # Error or timeout
+                error_msg = result.get('error', 'Unknown error')
+                errors.append(f"{file_path_str}: {error_msg}")
+                if _verbose and result.get('traceback'):
+                    self.logger.debug(f"  Traceback: {result['traceback']}")
+
+        self.logger.info(
+            f"✅ Parallel processing complete: {len(all_entities)} entities, "
+            f"{len(all_relations)} relations, {len(errors)} errors"
+        )
+
+        return all_entities, all_relations, all_chunks, errors, successful_files
+
     def _filter_orphan_relations_in_memory(
         self, relations: list["Relation"], global_entity_names: set
     ) -> list["Relation"]:
@@ -1525,9 +1651,27 @@ class CoreIndexer:
     ) -> tuple[list[Entity], list[Relation], list[EntityChunk], list[str], list[Path]]:
         """Process a batch of files with progressive disclosure support.
 
+        Routes to parallel processing for large batches (>= MIN_PARALLEL_BATCH files)
+        when parallel processing is enabled. Falls back to sequential processing
+        for small batches or if parallel processing fails.
+
         Returns:
             Tuple of (entities, relations, implementation_chunks, errors, successfully_processed_files)
         """
+        # Route to parallel processing for large batches
+        if (
+            self.parallel_processor is not None
+            and len(files) >= self.MIN_PARALLEL_BATCH
+            and self.config.use_parallel_processing
+        ):
+            try:
+                return self._process_files_parallel(files, collection_name, _verbose)
+            except Exception as e:
+                self.logger.warning(
+                    f"⚠️ Parallel processing failed, falling back to sequential: {e}"
+                )
+                # Fall through to sequential processing
+
         # Only log batch info in verbose mode
         if _verbose and self.logger:
             self.logger.debug(f"Processing batch of {len(files)} files for {collection_name}")

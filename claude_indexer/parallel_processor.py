@@ -17,7 +17,7 @@ import gc
 
 from .analysis.parser import ParserRegistry
 from .categorization import FileCategorizationSystem, ProcessingTier
-from .analysis.entities import Entity, EntityChunk as ChunkMetadata, Relation
+from .analysis.entities import Entity, EntityChunk, EntityType, Relation, RelationType
 
 # Configure logging for child processes
 def init_worker():
@@ -42,7 +42,9 @@ def parse_file_worker(args: Tuple[Path, str, Dict[str, Any]]) -> Dict[str, Any]:
 
     try:
         # Initialize components in worker process
-        parser_registry = ParserRegistry()
+        # Use file's parent directory as project root for parser initialization
+        project_root = file_path.parent
+        parser_registry = ParserRegistry(project_root)
         categorizer = FileCategorizationSystem()
 
         # Get processing tier and config
@@ -73,12 +75,11 @@ def parse_file_worker(args: Tuple[Path, str, Dict[str, Any]]) -> Dict[str, Any]:
             )
         else:
             # Standard or deep parsing
+            # ParserRegistry.parse_file signature: (file_path, batch_callback=None, global_entity_names=None)
             parse_result = parser_registry.parse_file(
                 file_path=file_path,
-                project_root=file_path.parent,
-                global_entity_context=set(),
-                collection_name=collection_name,
-                verbose=False
+                batch_callback=None,
+                global_entity_names=set()
             )
 
             if not parse_result:
@@ -117,7 +118,7 @@ def parse_file_worker(args: Tuple[Path, str, Dict[str, Any]]) -> Dict[str, Any]:
 
 
 def parse_light_tier(file_path: Path, parser_registry: ParserRegistry,
-                    collection_name: str) -> Tuple[List[Entity], List[Relation], List[ChunkMetadata]]:
+                    collection_name: str) -> Tuple[List[Entity], List[Relation], List[EntityChunk]]:
     """
     Simplified parsing for light tier files (generated code, type definitions).
 
@@ -126,30 +127,35 @@ def parse_light_tier(file_path: Path, parser_registry: ParserRegistry,
     entities = []
     chunks = []
 
-    # Create file entity
+    # Create file entity using proper Entity dataclass
     file_entity = Entity(
         name=str(file_path.absolute()),
-        type="file",
-        file_path=str(file_path),
-        content=f"File: {file_path.name}",
-        collection_name=collection_name,
+        entity_type=EntityType.FILE,
+        observations=[
+            f"File: {file_path.name}",
+            f"Tier: light (generated/type definition)",
+            f"Type: {file_path.suffix}",
+        ],
+        file_path=file_path,
+        line_number=1,
         metadata={
             "tier": "light",
             "generated": True,
-            "file_type": file_path.suffix
+            "file_type": file_path.suffix,
+            "collection_name": collection_name,
         }
     )
     entities.append(file_entity)
 
-    # Create minimal metadata chunk
-    chunk = ChunkMetadata(
-        file_path=str(file_path),
-        entity_names=[file_entity.name],
+    # Create minimal metadata chunk using proper EntityChunk dataclass
+    import hashlib
+    chunk_id = hashlib.md5(f"{file_path}::file::metadata".encode()).hexdigest()[:16]
+    chunk = EntityChunk(
+        id=f"{file_path}::file::{file_path.name}::metadata::{chunk_id}",
+        entity_name=str(file_path.absolute()),
         chunk_type="metadata",
-        content=f"Generated file: {file_path.name}",
-        start_line=0,
-        end_line=0,
-        metadata={"tier": "light"}
+        content=f"Generated file: {file_path.name} | Tier: light",
+        metadata={"tier": "light", "file_path": str(file_path)}
     )
     chunks.append(chunk)
 
@@ -170,22 +176,28 @@ def parse_light_tier(file_path: Path, parser_registry: ParserRegistry,
             for name in interfaces[:10]:  # Limit to first 10
                 entity = Entity(
                     name=name,
-                    type="interface",
-                    file_path=str(file_path),
-                    content=f"Interface: {name}",
-                    collection_name=collection_name,
-                    metadata={"tier": "light", "generated": True}
+                    entity_type=EntityType.INTERFACE,
+                    observations=[
+                        f"Interface: {name}",
+                        f"Defined in: {file_path.name}",
+                        "Tier: light (extracted without deep parsing)",
+                    ],
+                    file_path=file_path,
+                    metadata={"tier": "light", "generated": True, "collection_name": collection_name}
                 )
                 entities.append(entity)
 
             for name in types[:10]:  # Limit to first 10
                 entity = Entity(
                     name=name,
-                    type="type",
-                    file_path=str(file_path),
-                    content=f"Type: {name}",
-                    collection_name=collection_name,
-                    metadata={"tier": "light", "generated": True}
+                    entity_type=EntityType.VARIABLE,  # Use VARIABLE for type aliases
+                    observations=[
+                        f"Type alias: {name}",
+                        f"Defined in: {file_path.name}",
+                        "Tier: light (extracted without deep parsing)",
+                    ],
+                    file_path=file_path,
+                    metadata={"tier": "light", "generated": True, "collection_name": collection_name}
                 )
                 entities.append(entity)
 
@@ -197,37 +209,41 @@ def parse_light_tier(file_path: Path, parser_registry: ParserRegistry,
 
 
 def entity_to_dict(entity: Entity) -> Dict[str, Any]:
-    """Convert Entity to serializable dictionary."""
+    """Convert Entity to serializable dictionary for cross-process transfer."""
     return {
         'name': entity.name,
-        'type': entity.type.value if hasattr(entity.type, 'value') else entity.type,
-        'file_path': entity.file_path,
-        'content': entity.content,
-        'collection_name': entity.collection_name,
-        'metadata': entity.metadata or {}
+        'entity_type': entity.entity_type.value,
+        'observations': list(entity.observations),
+        'file_path': str(entity.file_path) if entity.file_path else None,
+        'line_number': entity.line_number,
+        'end_line_number': entity.end_line_number,
+        'docstring': entity.docstring,
+        'signature': entity.signature,
+        'complexity_score': entity.complexity_score,
+        'metadata': dict(entity.metadata) if entity.metadata else {}
     }
 
 
 def relation_to_dict(relation: Relation) -> Dict[str, Any]:
-    """Convert Relation to serializable dictionary."""
+    """Convert Relation to serializable dictionary for cross-process transfer."""
     return {
-        'source': relation.source,
-        'target': relation.target,
-        'type': relation.type,
-        'metadata': relation.metadata or {}
+        'from_entity': relation.from_entity,
+        'to_entity': relation.to_entity,
+        'relation_type': relation.relation_type.value,
+        'context': relation.context,
+        'confidence': relation.confidence,
+        'metadata': dict(relation.metadata) if relation.metadata else {}
     }
 
 
-def chunk_to_dict(chunk: ChunkMetadata) -> Dict[str, Any]:
-    """Convert ChunkMetadata to serializable dictionary."""
+def chunk_to_dict(chunk: EntityChunk) -> Dict[str, Any]:
+    """Convert EntityChunk to serializable dictionary for cross-process transfer."""
     return {
-        'file_path': chunk.file_path,
-        'entity_names': chunk.entity_names,
+        'id': chunk.id,
+        'entity_name': chunk.entity_name,
         'chunk_type': chunk.chunk_type,
         'content': chunk.content,
-        'start_line': chunk.start_line,
-        'end_line': chunk.end_line,
-        'metadata': chunk.metadata or {}
+        'metadata': dict(chunk.metadata) if chunk.metadata else {}
     }
 
 
