@@ -68,16 +68,35 @@ case "$TOOL_NAME" in
         esac
 
         # Check for hardcoded secrets patterns
-        if echo "$CONTENT" | grep -qiE '(password|api_key|secret|token|private_key)\s*=\s*["\x27][^"\x27]+["\x27]'; then
+        # Fixed: Use proper quote escaping and include := for various languages
+        if echo "$CONTENT" | grep -qiE "(password|api_key|secret|token|private_key)\s*[:=]\s*[\"'][^\"']+[\"']"; then
             add_warning "[SECURITY] Potential hardcoded secret detected. Use environment variables instead."
         fi
 
         # Check for SQL injection patterns (string concatenation in queries)
-        if echo "$CONTENT" | grep -qE 'f["\x27](SELECT|INSERT|UPDATE|DELETE|FROM|WHERE).*\{'; then
-            add_warning "[SECURITY] Potential SQL injection: avoid f-strings in queries. Use parameterized queries."
+        # Fixed: Multiple patterns for different injection vectors
+        SQL_INJECTION_FOUND=0
+        # Python f-strings with double or single quotes
+        if echo "$CONTENT" | grep -qE 'f["'"'"'](SELECT|INSERT|UPDATE|DELETE)[^"'"'"']*\{'; then
+            SQL_INJECTION_FOUND=1
+        fi
+        # JavaScript template literals
+        if echo "$CONTENT" | grep -qE '`(SELECT|INSERT|UPDATE|DELETE).*\$\{'; then
+            SQL_INJECTION_FOUND=1
+        fi
+        # String concatenation
+        if echo "$CONTENT" | grep -qE '"(SELECT|INSERT|UPDATE|DELETE)[^"]*"\s*\+'; then
+            SQL_INJECTION_FOUND=1
+        fi
+        # Python .format()
+        if echo "$CONTENT" | grep -qE '\.(format|substitute)\s*\(.*\).*(SELECT|INSERT|UPDATE|DELETE)|(SELECT|INSERT|UPDATE|DELETE).*\.(format|substitute)\s*\('; then
+            SQL_INJECTION_FOUND=1
+        fi
+        if [ "$SQL_INJECTION_FOUND" -eq 1 ]; then
+            add_warning "[SECURITY] Potential SQL injection: avoid string interpolation in queries. Use parameterized queries."
         fi
 
-        # Check for XSS patterns
+        # Check for XSS patterns (this one works correctly)
         if echo "$CONTENT" | grep -qE '(innerHTML|dangerouslySetInnerHTML|v-html)'; then
             add_warning "[SECURITY] innerHTML/dangerouslySetInnerHTML detected. Ensure input is sanitized."
         fi
@@ -85,47 +104,69 @@ case "$TOOL_NAME" in
         # === QUALITY CHECKS ===
 
         # Check for TODO without ticket reference
-        if echo "$CONTENT" | grep -qE '#\s*TODO[^:]*$|//\s*TODO[^:]*$'; then
-            if ! echo "$CONTENT" | grep -qE 'TODO.*[A-Z]+-[0-9]+'; then
-                add_warning "[QUALITY] TODO without ticket reference. Consider adding ticket ID (e.g., TODO: PROJ-123)"
+        # Fixed: Check each TODO line individually, not entire file
+        while IFS= read -r line; do
+            if [ -n "$line" ]; then
+                if ! echo "$line" | grep -qE '[A-Z]+-[0-9]+'; then
+                    # Truncate long lines for display
+                    truncated="${line:0:60}"
+                    add_warning "[QUALITY] TODO without ticket: $truncated"
+                    break  # Only warn once per edit
+                fi
             fi
-        fi
+        done < <(echo "$CONTENT" | grep -E '#\s*TODO|//\s*TODO')
 
         # Check for linter disables without explanation
-        if echo "$CONTENT" | grep -qE '(# noqa|# type: ignore|// @ts-ignore|// eslint-disable|# pylint: disable)'; then
-            if ! echo "$CONTENT" | grep -qE '(noqa|type: ignore|@ts-ignore|eslint-disable|pylint: disable).*#|.*//.*because|.*#.*reason'; then
-                add_warning "[QUALITY] Linter suppression without explanation. Add comment explaining why."
+        # Fixed: Check each suppression line individually
+        while IFS= read -r line; do
+            if [ -n "$line" ]; then
+                # Check if there's an explanation after the suppression (comment with reason)
+                if ! echo "$line" | grep -qE '(noqa|type:\s*ignore|@ts-ignore|eslint-disable|pylint:\s*disable).+[#-]'; then
+                    truncated="${line:0:60}"
+                    add_warning "[QUALITY] Unexplained suppression: $truncated"
+                    break  # Only warn once per edit
+                fi
             fi
-        fi
+        done < <(echo "$CONTENT" | grep -E '# noqa|# type: ignore|// @ts-ignore|// eslint-disable|# pylint: disable')
 
         # === RESILIENCE CHECKS ===
 
         # Check for swallowed exceptions
-        if echo "$CONTENT" | grep -qE 'except.*:\s*pass|catch.*\{\s*\}'; then
+        # Fixed: Handle multiline by collapsing to single line for pattern matching
+        COLLAPSED=$(echo "$CONTENT" | tr '\n' ' ')
+        if echo "$COLLAPSED" | grep -qE 'except[^:]*:\s*pass|catch\s*\([^)]*\)\s*\{\s*\}'; then
             add_warning "[RESILIENCE] Swallowed exception detected. Log errors or handle specifically."
         fi
 
         # Check for missing timeout in HTTP calls
-        if echo "$CONTENT" | grep -qE 'requests\.(get|post|put|delete|patch)\([^)]*\)'; then
-            if ! echo "$CONTENT" | grep -qE 'timeout\s*='; then
-                add_warning "[RESILIENCE] HTTP call without timeout. Add timeout parameter."
+        # Fixed: Check each request line individually
+        while IFS= read -r line; do
+            if [ -n "$line" ]; then
+                if ! echo "$line" | grep -qE 'timeout\s*='; then
+                    truncated="${line:0:50}"
+                    add_warning "[RESILIENCE] HTTP call may need timeout: $truncated"
+                    break  # Only warn once per edit
+                fi
             fi
-        fi
+        done < <(echo "$CONTENT" | grep -E 'requests\.(get|post|put|delete|patch)\(')
 
         # === DOCUMENTATION CHECKS ===
 
         # Check for public function without docstring (Python)
+        # Fixed: Use proper triple-quote detection
         if echo "$FILE_PATH" | grep -qE '\.py$'; then
-            if echo "$CONTENT" | grep -qE '^def [a-z][a-z_0-9]*\('; then
-                if ! echo "$CONTENT" | grep -qE '^\s*("""|\x27\x27\x27)'; then
-                    add_warning "[DOCS] Public function may need docstring. Consider adding documentation."
+            if echo "$CONTENT" | grep -qE '^def [a-z]'; then
+                # Check for triple quotes (either """ or ''')
+                if ! echo "$CONTENT" | grep -qE '^\s*("""|'"'"''"'"''"'"')'; then
+                    add_warning "[DOCS] Python function may need docstring. Consider adding documentation."
                 fi
             fi
         fi
 
         # Check for public function without JSDoc (JavaScript/TypeScript)
+        # Fixed: Include more export patterns
         if echo "$FILE_PATH" | grep -qE '\.(js|ts|jsx|tsx)$'; then
-            if echo "$CONTENT" | grep -qE '^export\s+(async\s+)?function'; then
+            if echo "$CONTENT" | grep -qE '^export\s+(async\s+)?(function|const|default)'; then
                 if ! echo "$CONTENT" | grep -qE '/\*\*'; then
                     add_warning "[DOCS] Exported function may need JSDoc. Consider adding documentation."
                 fi
