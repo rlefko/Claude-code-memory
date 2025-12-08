@@ -16,6 +16,20 @@ assert_exit_and_output "Detects hardcoded API key" 1 "SECURITY.*secret" \
 assert_exit "Allows env var reference" 0 \
     '{"tool_name":"Write","tool_input":{"file_path":"test.py","content":"password = os.environ.get(\"PASSWORD\")"}}'
 
+# === Logging Secrets ===
+
+assert_exit_and_output "Detects password in logger.info" 1 "Sensitive data" \
+    '{"tool_name":"Write","tool_input":{"file_path":"test.py","content":"logger.info(f\"Login with password {password}\")"}}'
+
+assert_exit_and_output "Detects token in logging.error" 1 "Sensitive data" \
+    '{"tool_name":"Write","tool_input":{"file_path":"test.py","content":"logging.error(f\"Token expired: {api_token}\")"}}'
+
+assert_exit_and_output "Detects secret in print" 1 "Sensitive data" \
+    '{"tool_name":"Write","tool_input":{"file_path":"test.py","content":"print(f\"Secret is: {secret}\")"}}'
+
+assert_exit "Allows logging non-sensitive data" 0 \
+    '{"tool_name":"Write","tool_input":{"file_path":"test.py","content":"logger.info(f\"User {username} logged in\")"}}'
+
 # === SQL Injection (CRITICAL - blocks) ===
 
 assert_exit_and_output "Detects Python f-string SQL" 2 "SQL injection" \

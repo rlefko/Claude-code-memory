@@ -1,6 +1,6 @@
 #!/bin/bash
 # ============================================================================
-# Memory Guard v4.2 - Unified Intelligent Guard System
+# Memory Guard v4.3 - Unified Intelligent Guard System
 # ============================================================================
 #
 # A professional-grade security and quality hook for Claude Code.
@@ -21,7 +21,7 @@
 #   - Tier 3: Full Claude CLI + MCP analysis (5-30s) - pre-commit only
 #
 # Features:
-#   - 20 pattern-based security and quality checks
+#   - 21 pattern-based security and quality checks
 #   - Fast duplicate detection via semantic search
 #   - Actionable fix suggestions
 #   - Event logging for data-driven improvement
@@ -40,7 +40,7 @@
 # ============================================================================
 
 # === CONFIGURATION ===
-readonly GUARD_VERSION="4.2"
+readonly GUARD_VERSION="4.3"
 readonly MAX_CONTENT_SIZE=1000000  # 1MB
 readonly FAST_MODE_TIMEOUT=5       # Fast mode timeout (Tier 0-2 only)
 readonly LOG_DIR="${HOME}/.claude-code-memory"
@@ -137,6 +137,26 @@ check_hardcoded_secrets() {
   Fix: Use environment variables instead
   Before: password = \"secret123\"
   After:  password = os.environ.get(\"PASSWORD\")" "$file"
+    fi
+}
+
+check_logging_secrets() {
+    local content="$1" file="$2"
+    # Detect logging statements that include sensitive variable names
+    if grep -qiE '(log|logger|logging)\.(debug|info|warning|error|critical|exception).*\{.*(password|secret|token|api_key|private_key|credential)' <<< "$content"; then
+        add_issue $SEV_HIGH "logging_secret" \
+"[SECURITY] Sensitive data in log statement
+  Fix: Never log passwords, tokens, or secrets
+  Before: logger.info(f\"Login with password {password}\")
+  After:  logger.info(f\"Login attempt for {user}\")" "$file"
+    fi
+    # Also check Python print statements that might log secrets
+    if grep -qiE 'print\s*\(.*\{.*(password|secret|token|api_key|private_key|credential)' <<< "$content"; then
+        add_issue $SEV_HIGH "logging_secret" \
+"[SECURITY] Sensitive data in print statement
+  Fix: Never print passwords, tokens, or secrets
+  Before: print(f\"Password: {password}\")
+  After:  print(f\"Authentication successful\")" "$file"
     fi
 }
 
@@ -459,6 +479,7 @@ run_file_checks() {
 
     # === Universal Security Checks ===
     check_hardcoded_secrets "$content" "$file"
+    check_logging_secrets "$content" "$file"
     check_sql_injection "$content" "$file"
     check_xss_patterns "$content" "$file"
     check_command_injection "$content" "$file"
