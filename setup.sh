@@ -444,91 +444,159 @@ if [ ! -d "$PROJECT_PATH/.git" ]; then
 else
     HOOKS_DIR="$PROJECT_PATH/.git/hooks"
 
-    # Create pre-commit hook
+    # Create pre-commit hook (diff-aware: only index staged files)
     print_info "Creating pre-commit hook..."
-    cat > "$HOOKS_DIR/pre-commit" << EOF
+    cat > "$HOOKS_DIR/pre-commit" << 'HOOK_EOF'
 #!/bin/bash
 # Semantic Code Memory - Pre-commit Hook
-# Automatically index changes before commit
-# Collection: $COLLECTION_NAME
+# Index only staged files, not entire project
+# Collection: COLLECTION_PLACEHOLDER
 
-echo "🔄 Running code indexing before commit..."
+echo "🔄 Indexing staged files..."
 
-# Index changed files (uses global claude-indexer wrapper)
-claude-indexer index -p "\$(pwd)" -c "$COLLECTION_NAME" 2>&1 | grep -E "(✓|✗|Error)" || true
+# Get staged files (Added, Copied, Modified - not Deleted)
+STAGED_FILES=$(git diff --cached --name-only --diff-filter=ACM)
 
-# Check if indexing succeeded
-if [ \$? -eq 0 ]; then
-    echo "✅ Indexing complete"
+if [ -z "$STAGED_FILES" ]; then
+    echo "✅ No files to index"
+    exit 0
+fi
+
+# Index each staged file
+INDEXED=0
+FAILED=0
+while IFS= read -r file; do
+    # Skip if file doesn't exist (edge case)
+    [ -f "$file" ] || continue
+
+    # Index the file using single-file command
+    if claude-indexer file -p "$(pwd)" -c "COLLECTION_PLACEHOLDER" "$file" --quiet 2>/dev/null; then
+        ((INDEXED++))
+    else
+        ((FAILED++))
+    fi
+done <<< "$STAGED_FILES"
+
+if [ $FAILED -gt 0 ]; then
+    echo "⚠️  Indexed $INDEXED file(s), $FAILED failed"
 else
-    echo "⚠️  Indexing failed - proceeding anyway"
+    echo "✅ Indexed $INDEXED file(s)"
 fi
 
 # Always allow commit to proceed
 exit 0
-EOF
+HOOK_EOF
+    # Replace placeholder with actual collection name
+    sed -i '' "s/COLLECTION_PLACEHOLDER/$COLLECTION_NAME/g" "$HOOKS_DIR/pre-commit"
     chmod +x "$HOOKS_DIR/pre-commit"
-    print_success "Pre-commit hook installed"
+    print_success "Pre-commit hook installed (diff-aware)"
 
-    # Create post-merge hook
+    # Create post-merge hook (diff-aware: only index merged files)
     print_info "Creating post-merge hook..."
-    cat > "$HOOKS_DIR/post-merge" << EOF
+    cat > "$HOOKS_DIR/post-merge" << 'HOOK_EOF'
 #!/bin/bash
 # Semantic Code Memory - Post-merge Hook
-# Automatically index changes after merge/pull
-# Collection: $COLLECTION_NAME
+# Index only files changed by the merge
+# Collection: COLLECTION_PLACEHOLDER
 
-echo "🔄 Running code indexing after merge/pull..."
+echo "🔄 Indexing merged files..."
 
-# Index all changes (uses global claude-indexer wrapper)
-claude-indexer index -p "\$(pwd)" -c "$COLLECTION_NAME" 2>&1 | grep -E "(✓|✗|Error)" || true
+# Get files changed by the merge (compare to before merge)
+CHANGED_FILES=$(git diff --name-only HEAD@{1} HEAD 2>/dev/null)
 
-# Check if indexing succeeded
-if [ \$? -eq 0 ]; then
-    echo "✅ Indexing complete"
+if [ -z "$CHANGED_FILES" ]; then
+    echo "✅ No files to index"
+    exit 0
+fi
+
+# Index each changed file
+INDEXED=0
+FAILED=0
+while IFS= read -r file; do
+    # Skip if file doesn't exist (was deleted)
+    [ -f "$file" ] || continue
+
+    # Index the file using single-file command
+    if claude-indexer file -p "$(pwd)" -c "COLLECTION_PLACEHOLDER" "$file" --quiet 2>/dev/null; then
+        ((INDEXED++))
+    else
+        ((FAILED++))
+    fi
+done <<< "$CHANGED_FILES"
+
+if [ $FAILED -gt 0 ]; then
+    echo "⚠️  Indexed $INDEXED file(s), $FAILED failed"
 else
-    echo "⚠️  Indexing failed - proceeding anyway"
+    echo "✅ Indexed $INDEXED file(s)"
 fi
 
 # Always allow operation to proceed
 exit 0
-EOF
+HOOK_EOF
+    sed -i '' "s/COLLECTION_PLACEHOLDER/$COLLECTION_NAME/g" "$HOOKS_DIR/post-merge"
     chmod +x "$HOOKS_DIR/post-merge"
-    print_success "Post-merge hook installed"
+    print_success "Post-merge hook installed (diff-aware)"
 
-    # Create post-checkout hook
+    # Create post-checkout hook (diff-aware: only index changed files between branches)
     print_info "Creating post-checkout hook..."
-    cat > "$HOOKS_DIR/post-checkout" << EOF
+    cat > "$HOOKS_DIR/post-checkout" << 'HOOK_EOF'
 #!/bin/bash
 # Semantic Code Memory - Post-checkout Hook
-# Automatically index changes after branch checkout
-# Collection: $COLLECTION_NAME
+# Index only files changed between branches
+# Collection: COLLECTION_PLACEHOLDER
 
-# Get hook parameters
-prev_head=\$1
-new_head=\$2
-branch_checkout=\$3
+prev_head=$1
+new_head=$2
+branch_checkout=$3
 
 # Only run on branch checkouts (not file checkouts)
-if [ "\$branch_checkout" = "1" ]; then
-    echo "🔄 Running code indexing after branch checkout..."
+[ "$branch_checkout" != "1" ] && exit 0
 
-    # Index all changes (uses global claude-indexer wrapper)
-    claude-indexer index -p "\$(pwd)" -c "$COLLECTION_NAME" 2>&1 | grep -E "(✓|✗|Error)" || true
+echo "🔄 Indexing changed files..."
 
-    # Check if indexing succeeded
-    if [ \$? -eq 0 ]; then
-        echo "✅ Indexing complete"
+# Handle initial checkout (prev_head is all zeros)
+if [ "$prev_head" = "0000000000000000000000000000000000000000" ]; then
+    # Full index for initial checkout (no diff available)
+    echo "Initial checkout detected, running full index..."
+    claude-indexer index -p "$(pwd)" -c "COLLECTION_PLACEHOLDER" --quiet 2>&1 | grep -E "(✓|✗)" || true
+    exit 0
+fi
+
+# Get files changed between commits
+CHANGED_FILES=$(git diff --name-only "$prev_head" "$new_head" 2>/dev/null)
+
+if [ -z "$CHANGED_FILES" ]; then
+    echo "✅ No files to index"
+    exit 0
+fi
+
+# Index each changed file
+INDEXED=0
+FAILED=0
+while IFS= read -r file; do
+    # Skip if file doesn't exist (was deleted in new branch)
+    [ -f "$file" ] || continue
+
+    # Index the file using single-file command
+    if claude-indexer file -p "$(pwd)" -c "COLLECTION_PLACEHOLDER" "$file" --quiet 2>/dev/null; then
+        ((INDEXED++))
     else
-        echo "⚠️  Indexing failed - proceeding anyway"
+        ((FAILED++))
     fi
+done <<< "$CHANGED_FILES"
+
+if [ $FAILED -gt 0 ]; then
+    echo "⚠️  Indexed $INDEXED file(s), $FAILED failed"
+else
+    echo "✅ Indexed $INDEXED file(s)"
 fi
 
 # Always allow operation to proceed
 exit 0
-EOF
+HOOK_EOF
+    sed -i '' "s/COLLECTION_PLACEHOLDER/$COLLECTION_NAME/g" "$HOOKS_DIR/post-checkout"
     chmod +x "$HOOKS_DIR/post-checkout"
-    print_success "Post-checkout hook installed"
+    print_success "Post-checkout hook installed (diff-aware)"
 fi
 
 # ============================================================================
@@ -543,6 +611,9 @@ SETTINGS_TEMPLATE="$SCRIPT_DIR/templates/settings.local.json.template"
 
 # Create .claude directory if it doesn't exist
 mkdir -p "$PROJECT_PATH/.claude"
+
+# Define GITIGNORE_PATH early so it's available for all steps
+GITIGNORE_PATH="$PROJECT_PATH/.gitignore"
 
 # Copy hook scripts (both .sh and .py files)
 if [ -d "$HOOKS_SRC" ]; then
@@ -569,35 +640,66 @@ else
     print_warning "Hooks source directory not found: $HOOKS_SRC"
 fi
 
-# Create settings.local.json from template
+# Create/merge settings.local.json from template
 if [ -f "$SETTINGS_TEMPLATE" ]; then
+    # Prepare new hooks config with substitutions
+    NEW_HOOKS=$(cat "$SETTINGS_TEMPLATE")
+    NEW_HOOKS="${NEW_HOOKS//\{\{HOOKS_PATH\}\}/$HOOKS_DEST}"
+    NEW_HOOKS="${NEW_HOOKS//\{\{COLLECTION_NAME\}\}/$COLLECTION_NAME}"
+    NEW_HOOKS="${NEW_HOOKS//\{\{VENV_PYTHON\}\}/$VENV_PATH/bin/python}"
+
     if [ -f "$SETTINGS_LOCAL" ]; then
-        # Backup existing settings
-        BACKUP_PATH="${SETTINGS_LOCAL}.backup.$(date +%Y%m%d_%H%M%S)"
-        cp "$SETTINGS_LOCAL" "$BACKUP_PATH"
-        print_warning "Existing settings.local.json backed up to $(basename "$BACKUP_PATH")"
+        # Merge with existing config (preserves user's custom hooks/env vars)
+        print_info "Merging with existing settings.local.json..."
 
-        echo -e -n "${YELLOW}Overwrite existing Claude Code hooks config? [y/N]:${NC} "
-        read -r overwrite_hooks
-
-        if [[ ! "$overwrite_hooks" =~ ^[Yy]$ ]]; then
-            print_info "Skipping hooks configuration (backup available)"
+        if command -v jq &> /dev/null; then
+            # Use jq for deep merge (template values override existing for hooks we manage)
+            MERGED=$(jq -s '.[0] * .[1]' "$SETTINGS_LOCAL" <(echo "$NEW_HOOKS") 2>/dev/null)
+            if [ $? -eq 0 ]; then
+                echo "$MERGED" > "$SETTINGS_LOCAL"
+                print_success "Claude Code hooks merged into settings.local.json"
+            else
+                print_warning "JSON merge failed, backing up and replacing..."
+                cp "$SETTINGS_LOCAL" "${SETTINGS_LOCAL}.backup.$(date +%Y%m%d_%H%M%S)"
+                echo "$NEW_HOOKS" > "$SETTINGS_LOCAL"
+                print_success "Claude Code hooks configured (backup created)"
+            fi
         else
-            # Create new settings.local.json
-            HOOKS_CONTENT=$(cat "$SETTINGS_TEMPLATE")
-            HOOKS_CONTENT="${HOOKS_CONTENT//\{\{HOOKS_PATH\}\}/$HOOKS_DEST}"
-            HOOKS_CONTENT="${HOOKS_CONTENT//\{\{COLLECTION_NAME\}\}/$COLLECTION_NAME}"
-            HOOKS_CONTENT="${HOOKS_CONTENT//\{\{VENV_PYTHON\}\}/$VENV_PATH/bin/python}"
-            echo "$HOOKS_CONTENT" > "$SETTINGS_LOCAL"
-            print_success "Claude Code hooks configured"
+            # Fallback: Python merge (venv is always available at this point)
+            MERGE_RESULT=$("$VENV_PATH/bin/python" -c "
+import json
+import sys
+try:
+    with open('$SETTINGS_LOCAL') as f:
+        existing = json.load(f)
+    new_config = json.loads('''$NEW_HOOKS''')
+    # Deep merge: new_config values override existing
+    def deep_merge(base, updates):
+        for k, v in updates.items():
+            if k in base and isinstance(base[k], dict) and isinstance(v, dict):
+                deep_merge(base[k], v)
+            else:
+                base[k] = v
+        return base
+    merged = deep_merge(existing, new_config)
+    print(json.dumps(merged, indent=2))
+except Exception as e:
+    print(f'ERROR: {e}', file=sys.stderr)
+    sys.exit(1)
+" 2>/dev/null)
+            if [ $? -eq 0 ]; then
+                echo "$MERGE_RESULT" > "$SETTINGS_LOCAL"
+                print_success "Claude Code hooks merged into settings.local.json"
+            else
+                print_warning "Python merge failed, backing up and replacing..."
+                cp "$SETTINGS_LOCAL" "${SETTINGS_LOCAL}.backup.$(date +%Y%m%d_%H%M%S)"
+                echo "$NEW_HOOKS" > "$SETTINGS_LOCAL"
+                print_success "Claude Code hooks configured (backup created)"
+            fi
         fi
     else
-        # Create new settings.local.json
-        HOOKS_CONTENT=$(cat "$SETTINGS_TEMPLATE")
-        HOOKS_CONTENT="${HOOKS_CONTENT//\{\{HOOKS_PATH\}\}/$HOOKS_DEST}"
-        HOOKS_CONTENT="${HOOKS_CONTENT//\{\{COLLECTION_NAME\}\}/$COLLECTION_NAME}"
-        HOOKS_CONTENT="${HOOKS_CONTENT//\{\{VENV_PYTHON\}\}/$VENV_PATH/bin/python}"
-        echo "$HOOKS_CONTENT" > "$SETTINGS_LOCAL"
+        # Create new file
+        echo "$NEW_HOOKS" > "$SETTINGS_LOCAL"
         print_success "Claude Code hooks configured"
     fi
 
@@ -610,17 +712,18 @@ else
     print_warning "Settings template not found: $SETTINGS_TEMPLATE"
 fi
 
-# Add .claude/hooks to .gitignore (contains project-specific paths)
-if [ -f "$GITIGNORE_PATH" ]; then
-    if ! grep -q "^\.claude/hooks" "$GITIGNORE_PATH"; then
-        echo ".claude/hooks/" >> "$GITIGNORE_PATH"
-        print_success "Added .claude/hooks/ to .gitignore"
-    fi
-    if ! grep -q "^\.claude/settings\.local\.json" "$GITIGNORE_PATH"; then
-        echo ".claude/settings.local.json" >> "$GITIGNORE_PATH"
-        print_success "Added .claude/settings.local.json to .gitignore"
-    fi
+# Add .claude/hooks and settings.local.json to .gitignore
+# Create .gitignore if it doesn't exist
+if [ ! -f "$GITIGNORE_PATH" ]; then
+    touch "$GITIGNORE_PATH"
 fi
+
+for pattern in ".claude/hooks/" ".claude/settings.local.json"; do
+    if ! grep -qF "$pattern" "$GITIGNORE_PATH"; then
+        echo "$pattern" >> "$GITIGNORE_PATH"
+        print_success "Added $pattern to .gitignore"
+    fi
+done
 
 # ============================================================================
 # Step 6: MCP Server Configuration
@@ -736,25 +839,49 @@ CLAUDE_MD_CONTENT="${CLAUDE_MD_CONTENT//\{\{GENERATION_DATE\}\}/$(date '+%Y-%m-%
 CLAUDE_MD_CONTENT="${CLAUDE_MD_CONTENT//\{\{VECTOR_COUNT\}\}/[pending indexing]}"
 CLAUDE_MD_CONTENT="${CLAUDE_MD_CONTENT//\{\{FILE_COUNT\}\}/[pending indexing]}"
 
-# Write CLAUDE.md
+# Write CLAUDE.md with smart merge
 CLAUDE_MD_PATH="$PROJECT_PATH/CLAUDE.md"
+MEMORY_MARKER="## ⚡ CRITICAL: YOU HAVE PERFECT MEMORY"
+
 if [ -f "$CLAUDE_MD_PATH" ]; then
     # Backup existing CLAUDE.md
     BACKUP_PATH="${CLAUDE_MD_PATH}.backup.$(date +%Y%m%d_%H%M%S)"
     cp "$CLAUDE_MD_PATH" "$BACKUP_PATH"
     print_warning "Existing CLAUDE.md backed up to $(basename "$BACKUP_PATH")"
 
-    echo -e -n "${YELLOW}Append memory section to existing CLAUDE.md? [y/N]:${NC} "
-    read -r append_choice
+    # Check if memory section already exists (deduplication)
+    if grep -q "$MEMORY_MARKER" "$CLAUDE_MD_PATH"; then
+        echo -e -n "${YELLOW}Memory section exists. Update it? [y/N]:${NC} "
+        read -r update_choice
 
-    if [[ "$append_choice" =~ ^[Yy]$ ]]; then
-        echo -e "\n\n# ============================================================================" >> "$CLAUDE_MD_PATH"
-        echo -e "# Semantic Code Memory System" >> "$CLAUDE_MD_PATH"
-        echo -e "# ============================================================================\n" >> "$CLAUDE_MD_PATH"
-        echo "$CLAUDE_MD_CONTENT" >> "$CLAUDE_MD_PATH"
-        print_success "Memory section appended to CLAUDE.md"
+        if [[ "$update_choice" =~ ^[Yy]$ ]]; then
+            # Remove old memory section (everything from marker to end of file)
+            # Use sed to delete from memory marker to end
+            sed -i.tmp "/$MEMORY_MARKER/,\$d" "$CLAUDE_MD_PATH"
+            rm -f "${CLAUDE_MD_PATH}.tmp"
+
+            # Append updated memory section
+            echo -e "\n" >> "$CLAUDE_MD_PATH"
+            echo "$CLAUDE_MD_CONTENT" >> "$CLAUDE_MD_PATH"
+            print_success "Memory section updated in CLAUDE.md"
+        else
+            print_info "Keeping existing memory section"
+        fi
     else
-        print_info "Skipping CLAUDE.md update (backup available)"
+        echo -e -n "${YELLOW}Append memory section to existing CLAUDE.md? [y/N]:${NC} "
+        read -r append_choice
+
+        if [[ "$append_choice" =~ ^[Yy]$ ]]; then
+            echo -e "\n\n---\n" >> "$CLAUDE_MD_PATH"
+            echo "$CLAUDE_MD_CONTENT" >> "$CLAUDE_MD_PATH"
+            print_success "Memory section appended to CLAUDE.md"
+        else
+            # Save memory section for manual merge so user isn't stuck
+            echo "$CLAUDE_MD_CONTENT" > "${PROJECT_PATH}/CLAUDE.memory-section.md"
+            print_info "Skipping CLAUDE.md update"
+            print_info "Memory content saved to: CLAUDE.memory-section.md"
+            print_info "You can manually merge this into your CLAUDE.md"
+        fi
     fi
 else
     echo "$CLAUDE_MD_CONTENT" > "$CLAUDE_MD_PATH"
