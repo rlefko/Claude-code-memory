@@ -1,6 +1,28 @@
-# Claude Code Memory - Transform Claude into a 10x Senior Architect 🚀
+# Claude Code Memory - Transform Claude into a 10x Senior Architect
 
-## 🔥 Regular Claude vs God Mode Claude
+> **v2.8** | Semantic code memory for Claude Code with hybrid search, Memory Guard v4.3, and intelligent hooks
+
+```mermaid
+graph LR
+    CC[Claude Code] <-->|MCP Protocol| MCP[MCP Server]
+    MCP <-->|Vector Ops| QD[(Qdrant DB)]
+    IDX[Python Indexer] -->|Index| QD
+
+    subgraph Hooks
+        SS[SessionStart]
+        PT[PreToolUse]
+        PO[PostToolUse]
+    end
+
+    CC --> Hooks
+    PO -.-> IDX
+```
+
+**[Architecture](ARCHITECTURE.md)** | **[Changelog](CHANGELOG.md)** | **[CLI Reference](docs/CLI_REFERENCE.md)** | **[Memory Guard](docs/MEMORY_GUARD.md)**
+
+---
+
+## Regular Claude vs God Mode Claude
 
 **Regular Claude Code** (Without Memory):
 - 🐣 "What's your project structure?" - Asked every. single. time.
@@ -16,32 +38,34 @@
 - ⚡ "Found 5 instances of this pattern. Want me to refactor them all?"
 - 🚀 Starts coding immediately with full context
 
-## 🛡️ Memory Guard - Your AI Code Quality Gate That Prevents All Bad Code
+## Memory Guard v4.3 - 27 Checks Protecting Your Code
 
-**The Evolution:** Memory Guard has transformed from simple duplicate detection into a comprehensive code quality gate
-**The Solution:** Memory Guard now analyzes 4 critical dimensions before allowing any code changes
+```mermaid
+flowchart LR
+    A[Code Change] --> B{Mode?}
+    B -->|Edit| C[FAST: 27 checks<br/>< 300ms]
+    B -->|Commit| D[FULL: Deep analysis<br/>5-30s]
+    C --> E{Issue?}
+    D --> E
+    E -->|Critical| F[Block]
+    E -->|Warning| G[Warn]
+    E -->|None| H[Allow]
+```
 
-### 🎯 The 4 Quality Dimensions Memory Guard Checks:
+Memory Guard v4.3 enforces code quality through **27 pattern-based checks** across 5 categories:
 
-**🔄 1. Code Duplication (Primary Focus)**
-- Detects duplicate functions, classes, and logic patterns
-- Finds copy-paste code with minor variations
-- Identifies redundant utility implementations
+| Category | Checks | Examples |
+|----------|--------|----------|
+| **Security** | 11 | SQL injection, XSS, secrets, crypto, logging credentials |
+| **Tech Debt** | 9 | TODO/FIXME/HACK, debug statements, bare except, mutable defaults |
+| **Documentation** | 2 | Missing docstrings, missing JSDoc |
+| **Resilience** | 2 | Swallowed exceptions, HTTP timeouts |
+| **Git Safety** | 3 | Force push, hard reset, destructive rm |
 
-**🧠 2. Logic Completeness**
-- Catches missing error handling and edge cases
-- Identifies SQL injection vulnerabilities
-- Flags incomplete input validation and security checks
+### Two-Mode Architecture
 
-**🔗 3. Flow Integrity**
-- Prevents breaking API contracts and interfaces
-- Catches dangerous parameter removals
-- Identifies breaking changes to function signatures
-
-**⚙️ 4. Feature Preservation**
-- Prevents removal of existing functionality
-- Protects against breaking user workflows
-- Ensures backward compatibility
+- **FAST Mode** (< 300ms): Runs during Write/Edit operations - pattern checks only
+- **FULL Mode** (5-30s): Runs before commits - comprehensive AI analysis
 
 ### Watch Memory Guard in Action:
 
@@ -622,11 +646,67 @@ Automatically configured during setup:
 - Breaking API change prevention
 - Feature preservation checks
 
-## 🤝 Contributing
+## Claude Code Hooks
 
-**Found a bug?** 🐛 [Report it here](https://github.com/Durafen/Claude-code-memory/issues)
-**Want a feature?** ✨ [Request it here](https://github.com/Durafen/Claude-code-memory/issues)
-**Have feedback?** 💬 [Start a discussion](https://github.com/Durafen/Claude-code-memory/discussions)
+The hook system automates memory operations at key workflow points:
+
+| Hook | File | Trigger | Purpose | Latency |
+|------|------|---------|---------|---------|
+| **SessionStart** | `session_start.py` | Session begins | Git context + memory reminder | < 100ms |
+| **UserPromptSubmit** | `prompt_handler.py` | Before Claude processes | Intent detection, tool suggestions | < 50ms |
+| **PreToolUse** | `pre-tool-guard.sh` | Before Write/Edit/Bash | Memory Guard quality checks | < 300ms |
+| **PostToolUse** | `post-file-change.sh` | After Write/Edit | Auto-index changed files | ~100ms |
+
+### Batch Indexing (New in v2.8)
+
+Git hooks now use batch indexing for **4-15x faster** performance:
+
+```bash
+# Old: Sequential (60s for 10 files)
+for file in $CHANGED_FILES; do
+    claude-indexer file "$file" ...  # 6s each
+done
+
+# New: Batch (5s for 10 files)
+echo "$CHANGED_FILES" | claude-indexer index --files-from-stdin ...
+```
+
+| Files Changed | Sequential | Batch | Speedup |
+|---------------|------------|-------|---------|
+| 1 | 3s | 3s | 1x |
+| 5 | 15s | 4s | 4x |
+| 10 | 30s | 5s | 6x |
+| 50 | 150s | 10s | 15x |
+
+---
+
+## Performance Benchmarks
+
+| Operation | Latency | Notes |
+|-----------|---------|-------|
+| Metadata search | **3-5ms** | Progressive disclosure default |
+| Full entity search | 50-80ms | With implementation details |
+| Single file index | 100-300ms | Depends on file complexity |
+| Batch index (100 files) | 10-20s | Parallel processing |
+| Memory Guard (FAST) | 150-250ms | 27 pattern checks |
+| Hybrid search | 30-50ms | Semantic + BM25 combined |
+
+### Scaling Characteristics
+
+| Metric | Capacity |
+|--------|----------|
+| Vectors per collection | 100,000+ |
+| Files per project | 10,000+ |
+| Concurrent searches | 100+ |
+| Embedding batch size | 100 entities |
+
+---
+
+## Contributing
+
+**Found a bug?** [Report it here](https://github.com/Durafen/Claude-code-memory/issues)
+**Want a feature?** [Request it here](https://github.com/Durafen/Claude-code-memory/issues)
+**Have feedback?** [Start a discussion](https://github.com/Durafen/Claude-code-memory/discussions)
 
 ## 🎉 Start Your God Mode Journey
 

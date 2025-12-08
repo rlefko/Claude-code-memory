@@ -1,45 +1,78 @@
-# CLAUDE.md
+# CLAUDE.md - Developer Guide
 
-**Test using CLI tools:** `claude-indexer index/watch/service --verbose` for comprehensive validation.
-**Main integration test:** `pytest tests/integration/test_index_check_complete.py -v -s -x` - 9-stage incremental indexing protocol. Logs: `isolated_test/logs/parser-test.log`
-**Watcher test:** Add `--watcher` flag to above command. Watcher logs: `isolated_test/logs/parser-test-watcher.log`
-- Project indexing: `logs/[collection-name].log` (e.g., `logs/claude-memory.log`)
+> **v2.8** | Claude Code Memory - Semantic code memory for Claude Code
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+This file provides guidance to Claude Code when working with code in this repository.
 
-## Git Structure
+---
 
-The project has 3 git repositories: main project root, tests/ folder (independent git with test changes), and mcp-qdrant-memory/ subfolder (Node.js MCP server component). Tests folder tracks test modifications separately from main codebase.
+## 📚 Documentation
 
-## Testing and Debug Environment
+| Document | Description |
+|----------|-------------|
+| [README.md](README.md) | Project overview and quick start |
+| [ARCHITECTURE.md](ARCHITECTURE.md) | System design with mermaid diagrams |
+| [CHANGELOG.md](CHANGELOG.md) | Version history and migration notes |
+| [docs/CLI_REFERENCE.md](docs/CLI_REFERENCE.md) | Complete CLI command reference |
+| [docs/HOOKS.md](docs/HOOKS.md) | Claude Code hooks system |
+| [docs/MEMORY_GUARD.md](docs/MEMORY_GUARD.md) | Code quality enforcement (27 checks) |
 
-**⚠️ CRITICAL: Use `debug/` folder for ALL test scripts and test databases. NEVER INDEX MAIN PROJECT PATH.**
+---
 
-- Create test scripts in `debug/` folder only (never in project root)
+## 🧪 Testing
+
+**CLI Validation:**
+```bash
+claude-indexer index/watch/service --verbose
+```
+
+**Integration Tests:**
+```bash
+pytest tests/integration/test_index_check_complete.py -v -s -x
+# Logs: isolated_test/logs/parser-test.log
+
+# With watcher:
+pytest tests/integration/test_index_check_complete.py -v -s -x --watcher
+# Logs: isolated_test/logs/parser-test-watcher.log
+```
+
+**Project indexing logs:** `logs/[collection-name].log`
+
+---
+
+## 🏗️ Git Structure
+
+The project has 3 git repositories:
+1. **Main project root** - Primary codebase
+2. **tests/** - Independent git for test changes
+3. **mcp-qdrant-memory/** - Node.js MCP server component
+
+---
+
+## ⚠️ Debug Environment
+
+**CRITICAL: Use `debug/` folder for ALL test scripts and databases.**
+
+- Create test scripts in `debug/` only (never in project root)
 - Use `debug/test_collections/` for test database collections
-- Test files in `debug/` are automatically ignored by git and indexer
+- Test files in `debug/` are automatically git-ignored
 - Never contaminate production collections with test data
-- Examples: `debug/test_parser.py`, `debug/test_relations.py`, `debug/test_collections/parser-test`
-- **Use Desktop Commander tools (`mcp__desktop-commander__write_file`, `mcp__desktop-commander__edit_block`) for ALL file operations in debug/ folder**
 
-# Claude Code Memory Solution
+---
 
 ## Architecture Overview
 
-This is a **dual-component semantic code memory system** for Claude Code:
+```mermaid
+graph LR
+    CC[Claude Code] <-->|MCP Protocol| MCP[MCP Server<br/>Node.js]
+    MCP <-->|Vector Search| Q[(Qdrant DB)]
+    IDX[Python Indexer<br/>Tree-sitter + Jedi] -->|Index| Q
+```
 
 **Components:**
 - **Python Indexer** (`claude_indexer/`) - Universal AST parsing and vector indexing
 - **Node.js MCP Server** (`mcp-qdrant-memory/`) - Memory retrieval interface for Claude
 - **Qdrant Vector Database** - Semantic search and storage backend
-
-**Core Architecture:**
-```
-Claude Code ◄──► MCP Server ◄──► Qdrant Database
-                      ▲
-              Python Indexer
-                (Tree-sitter + Jedi)
-```
 
 ## Essential Commands
 
@@ -74,7 +107,11 @@ pytest --cov=claude_indexer --cov-report=html  # With coverage
 ### Indexing and Memory Operations
 ```bash
 # Index project (auto-detects incremental mode)
-claude-indexer -p /path/to/project -c collection-name
+claude-indexer index -p /path/to/project -c collection-name
+
+# Batch indexing from stdin (4-15x faster for git hooks)
+echo "src/auth.py
+src/api/users.py" | claude-indexer index -p . -c my-project --files-from-stdin
 
 # Real-time file watching
 claude-indexer watch start -p /path -c collection-name
@@ -432,11 +469,19 @@ python utils/find_missing_files.py                # File sync debugging
 - Use `--verbose` flag for detailed error messages
 - Check memory: `search_similar("indexing error no entities", entityTypes=["debugging_pattern", "metadata"])`
 
-## Additional Information
+---
 
-**Use `§m` to search memory for:**
+## 📖 Additional Resources
+
+**Documentation:**
+- [CLI Reference](docs/CLI_REFERENCE.md) - Complete command documentation
+- [Hooks System](docs/HOOKS.md) - Claude Code integration hooks
+- [Memory Guard](docs/MEMORY_GUARD.md) - 27 code quality checks
+- [Architecture](ARCHITECTURE.md) - System design diagrams
+- [Changelog](CHANGELOG.md) - Version history
+
+**Search memory for:**
 - Multi-language parser specifications
 - Configuration system details
 - Performance optimization patterns
-- Version history and migration guides
 - Advanced debugging workflows
