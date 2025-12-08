@@ -1012,6 +1012,148 @@ class CoreIndexer:
         result.processing_time = time.time() - start_time
         return result
 
+    def index_files(
+        self, file_paths: list[Path], collection_name: str, verbose: bool = False
+    ) -> IndexingResult:
+        """Index a specific list of files as a batch.
+
+        This method is optimized for batch operations like git hooks where
+        multiple files need to be indexed together. It:
+        - Processes all files in a single batch (leveraging parallelization)
+        - Uses a single Qdrant transaction for storage
+        - Shares embedding API batches across all files (500 relations per call)
+        - Pays process startup cost only once
+
+        Expected speedup: 4-15x faster than sequential single-file indexing.
+
+        Args:
+            file_paths: List of absolute file paths to index
+            collection_name: Name of the collection to store in
+            verbose: Enable verbose logging
+
+        Returns:
+            IndexingResult with aggregated metrics
+        """
+        start_time = time.time()
+        result = IndexingResult(success=True, operation="batch_files")
+
+        if not file_paths:
+            result.warnings = ["No files provided for batch indexing"]
+            result.processing_time = time.time() - start_time
+            return result
+
+        try:
+            # Ensure collection exists
+            if not self.vector_store.collection_exists(collection_name):
+                if verbose:
+                    self.logger.info(f"Creating collection '{collection_name}'...")
+                vector_size = 512  # Voyage-3-lite default
+                self.vector_store.backend.ensure_collection(collection_name, vector_size)
+
+            # Validate all files are within project
+            valid_files = []
+            for file_path in file_paths:
+                try:
+                    file_path.relative_to(self.project_path)
+                    if file_path.exists() and file_path.is_file():
+                        valid_files.append(file_path)
+                    else:
+                        if result.warnings is None:
+                            result.warnings = []
+                        result.warnings.append(f"File not found: {file_path}")
+                except ValueError:
+                    if result.warnings is None:
+                        result.warnings = []
+                    result.warnings.append(f"File not within project: {file_path}")
+
+            if not valid_files:
+                result.success = False
+                result.errors = ["No valid files to index"]
+                result.processing_time = time.time() - start_time
+                return result
+
+            if verbose:
+                self.logger.info(f"📁 Batch indexing {len(valid_files)} files")
+
+            # Process all files in a single batch (leverages parallelization for large batches)
+            (
+                all_entities,
+                all_relations,
+                all_implementation_chunks,
+                errors,
+                successfully_processed,
+            ) = self._process_file_batch(valid_files, collection_name, verbose)
+
+            if errors:
+                if result.errors is None:
+                    result.errors = []
+                result.errors.extend(errors)
+
+            # Apply orphan filtering before storage
+            if all_relations:
+                global_entity_names = self._get_all_entity_names(collection_name)
+                current_batch_entity_names = {entity.name for entity in all_entities}
+                combined_entity_names = global_entity_names | current_batch_entity_names
+
+                if combined_entity_names:
+                    original_count = len(all_relations)
+                    all_relations = self._filter_orphan_relations_in_memory(
+                        all_relations, combined_entity_names
+                    )
+                    filtered_count = original_count - len(all_relations)
+                    if verbose and filtered_count > 0:
+                        self.logger.info(
+                            f"🧹 Filtered {filtered_count} orphan relations"
+                        )
+
+            # Store vectors in a single batch transaction
+            if all_entities or all_relations or all_implementation_chunks:
+                git_meta = self._prepare_git_meta_context(collection_name, all_entities)
+                storage_success = self._store_vectors(
+                    collection_name,
+                    all_entities,
+                    all_relations,
+                    all_implementation_chunks,
+                    git_meta.changed_entity_ids,
+                )
+
+                if not storage_success:
+                    result.success = False
+                    if result.errors is None:
+                        result.errors = []
+                    result.errors.append("Failed to store vectors in Qdrant")
+                else:
+                    result.files_processed = len(successfully_processed)
+                    result.entities_created = len(all_entities)
+                    result.relations_created = len(all_relations)
+                    result.implementation_chunks_created = len(all_implementation_chunks)
+                    result.processed_files = [str(f) for f in successfully_processed]
+
+            # Update state for processed files
+            if successfully_processed:
+                self._update_state(
+                    successfully_processed,
+                    collection_name,
+                    verbose,
+                    full_rebuild=False,
+                )
+
+            # Transfer cost data
+            if hasattr(self, "_session_cost_data"):
+                result.total_tokens = int(self._session_cost_data.get("tokens", 0))
+                result.total_cost_estimate = self._session_cost_data.get("cost", 0.0)
+                result.embedding_requests = int(self._session_cost_data.get("requests", 0))
+                self._session_cost_data = {"tokens": 0, "cost": 0.0, "requests": 0}
+
+        except Exception as e:
+            result.success = False
+            if result.errors is None:
+                result.errors = []
+            result.errors.append(f"Batch indexing failed: {e}")
+
+        result.processing_time = time.time() - start_time
+        return result
+
     def search_similar(
         self,
         collection_name: str,

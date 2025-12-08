@@ -115,6 +115,11 @@ else:
         default="full",
         help="Analysis depth",
     )
+    @click.option(
+        "--files-from-stdin",
+        is_flag=True,
+        help="Read file paths from stdin (one per line) for batch indexing",
+    )
     def index(
         project,
         collection,
@@ -125,8 +130,9 @@ else:
         clear,
         clear_all,
         depth,
+        files_from_stdin,
     ):
-        """Index an entire project."""
+        """Index an entire project or specific files from stdin."""
 
         if quiet and verbose:
             click.echo("Error: --quiet and --verbose are mutually exclusive", err=True)
@@ -220,6 +226,61 @@ else:
                         )
 
                 # Exit after clearing - don't auto-index
+                return
+
+            # Handle --files-from-stdin for batch indexing of specific files
+            if files_from_stdin:
+                import sys as sys_module
+
+                # Read file paths from stdin
+                file_paths = []
+                for line in sys_module.stdin:
+                    line = line.strip()
+                    if line:
+                        file_path = Path(line)
+                        # Handle relative paths
+                        if not file_path.is_absolute():
+                            file_path = project_path / file_path
+                        file_path = file_path.resolve()
+
+                        # Validate file exists and is within project
+                        if file_path.exists() and file_path.is_file():
+                            try:
+                                file_path.relative_to(project_path)
+                                file_paths.append(file_path)
+                            except ValueError:
+                                if not quiet:
+                                    click.echo(f"⚠️ Skipping {line}: not within project", err=True)
+                        elif not quiet:
+                            click.echo(f"⚠️ Skipping {line}: file not found", err=True)
+
+                if not file_paths:
+                    if not quiet:
+                        click.echo("No valid files to index from stdin")
+                    return
+
+                if not quiet:
+                    click.echo(f"📁 Batch indexing {len(file_paths)} files from stdin")
+
+                # Use batch indexing method
+                result = indexer.index_files(
+                    file_paths=file_paths,
+                    collection_name=collection,
+                )
+
+                # Report results
+                if result.success:
+                    if not quiet:
+                        click.echo(f"✅ Batch indexing completed in {result.processing_time:.1f}s")
+                        click.echo(f"   Files processed: {result.files_processed}")
+                        click.echo(f"   Entities: {result.entities_created}")
+                        click.echo(f"   Relations: {result.relations_created}")
+                else:
+                    click.echo("❌ Batch indexing failed", err=True)
+                    for error in result.errors or []:
+                        click.echo(f"   {error}", err=True)
+                    sys.exit(1)
+
                 return
 
             # Auto-detect incremental mode and run indexing only if not clearing
