@@ -125,6 +125,21 @@ Memory automatically stays current when you make changes:
 
 **You never need to manually re-index** - the system keeps memory synchronized.
 
+### 🧠 Smart Prompt Analysis (UserPromptSubmit)
+
+A **UserPromptSubmit hook** analyzes your prompts BEFORE Claude processes them:
+
+- **Intent Detection**: Recognizes search, debug, implement, refactor, and understand requests
+- **Tool Suggestions**: Injects relevant MCP tool recommendations based on prompt type
+- **Sensitive Data Warning**: Alerts if your prompt contains potential credentials
+
+**Example**: If you ask "fix the login error", it will suggest:
+```
+Check `mcp__{{COLLECTION_NAME}}-memory__search_similar("error description", entityTypes=["debugging_pattern"])` for past solutions
+```
+
+This ensures you always leverage semantic memory for faster, more informed development.
+
 ### 🔧 Complete MCP Tool Reference
 
 **Available Tools** (prefix: `mcp__{{COLLECTION_NAME}}-memory__`):

@@ -1,5 +1,11 @@
 {
   "hooks": {
+    "UserPromptSubmit": [
+      {
+        "type": "command",
+        "command": "python3 {{HOOKS_PATH}}/prompt_handler.py"
+      }
+    ],
     "PreToolUse": [
       {
         "matcher": "Bash|Write|Edit",

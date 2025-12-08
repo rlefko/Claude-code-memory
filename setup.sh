@@ -544,11 +544,21 @@ SETTINGS_TEMPLATE="$SCRIPT_DIR/templates/settings.local.json.template"
 # Create .claude directory if it doesn't exist
 mkdir -p "$PROJECT_PATH/.claude"
 
-# Copy hook scripts
+# Copy hook scripts (both .sh and .py files)
 if [ -d "$HOOKS_SRC" ]; then
     mkdir -p "$HOOKS_DEST"
 
+    # Copy shell scripts
     for hook_file in "$HOOKS_SRC"/*.sh; do
+        if [ -f "$hook_file" ]; then
+            cp "$hook_file" "$HOOKS_DEST/"
+            chmod +x "$HOOKS_DEST/$(basename "$hook_file")"
+            print_success "Installed hook: $(basename "$hook_file")"
+        fi
+    done
+
+    # Copy Python scripts
+    for hook_file in "$HOOKS_SRC"/*.py; do
         if [ -f "$hook_file" ]; then
             cp "$hook_file" "$HOOKS_DEST/"
             chmod +x "$HOOKS_DEST/$(basename "$hook_file")"
@@ -974,7 +984,7 @@ echo "  • Project: $PROJECT_PATH"
 echo "  • Collection: $COLLECTION_NAME"
 echo "  • MCP Server: ${COLLECTION_NAME}-memory"
 echo "  • Git Hooks: ✓ Installed (pre-commit, post-merge, post-checkout)"
-echo "  • Claude Code Hooks: ✓ Installed (PreToolUse guard, PostToolUse auto-index)"
+echo "  • Claude Code Hooks: ✓ Installed (UserPromptSubmit context, PreToolUse guard, PostToolUse auto-index)"
 echo "  • Slash Commands: ✓ 10 commands (/refactor, /restructure, /redocument, /resecure, /reresilience, /reoptimize, /retype, /retest, /rebuild, /resolve)"
 echo "  • Documentation: ✓ CLAUDE.md created/updated"
 echo ""
