@@ -89,6 +89,22 @@ check_prerequisites() {
     return 0
 }
 
+# Cross-platform timeout wrapper (macOS doesn't have timeout by default)
+run_with_timeout() {
+    local timeout_secs="$1"
+    shift
+
+    # Try timeout (Linux), then gtimeout (macOS with coreutils), then run without timeout
+    if command -v timeout &> /dev/null; then
+        timeout "${timeout_secs}s" "$@"
+    elif command -v gtimeout &> /dev/null; then
+        gtimeout "${timeout_secs}s" "$@"
+    else
+        # No timeout available - run directly (may hang on problematic files)
+        "$@"
+    fi
+}
+
 # Run full analysis on a single file
 analyze_file() {
     local file_path="$1"
@@ -99,8 +115,8 @@ analyze_file() {
         log "INFO" "Analyzing: $file_path"
     fi
 
-    # Run Memory Guard in FULL mode
-    result=$(timeout "$TIMEOUT"s python3 "$MEMORY_GUARD" --full --file "$file_path" 2>&1) || exit_code=$?
+    # Run Memory Guard in FULL mode (with cross-platform timeout)
+    result=$(run_with_timeout "$TIMEOUT" python3 "$MEMORY_GUARD" --full --file "$file_path" 2>&1) || exit_code=$?
 
     if [[ "${exit_code:-0}" -eq 124 ]]; then
         log "WARN" "Analysis timed out for $file_path (>${TIMEOUT}s)"
