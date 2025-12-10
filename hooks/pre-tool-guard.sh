@@ -597,6 +597,42 @@ call_python_guard() {
     return 0
 }
 
+# === UI CONSISTENCY GUARD INTEGRATION ===
+#
+# Runs UI-specific checks for CSS, JSX, TSX, Vue, Svelte files.
+# Uses fast mode (<300ms target) to maintain editing responsiveness.
+
+call_ui_guard() {
+    local input="$1"
+    local script_dir="$(dirname "$0")"
+    local ui_guard="$script_dir/ui-pre-tool-guard.sh"
+
+    # Check if UI guard exists
+    [[ ! -f "$ui_guard" ]] && return 0
+
+    # Check if UI analysis is enabled
+    [[ "$DISABLE_UI_GUARD" == "true" ]] && return 0
+
+    # Call UI guard
+    local ui_result
+    ui_result=$(run_with_timeout "$FAST_MODE_TIMEOUT" bash "$ui_guard" <<< "$input" 2>&1) || return 0
+
+    # Parse result (JSON format)
+    if [[ -n "$ui_result" ]]; then
+        local decision reason
+        decision=$(jq -r '.decision // empty' <<< "$ui_result" 2>/dev/null)
+        reason=$(jq -r '.reason // empty' <<< "$ui_result" 2>/dev/null)
+
+        if [[ "$decision" == "block" ]]; then
+            BLOCKS+=("[UI] $reason")
+        elif [[ -n "$reason" && "$reason" != "null" && "$reason" != "UI checks passed" ]]; then
+            WARNINGS+=("[UI] $reason")
+        fi
+    fi
+
+    return 0
+}
+
 # === OUTPUT ===
 
 output_results() {
@@ -651,6 +687,9 @@ main() {
 
             # Run intelligent analysis for code changes (non-blocking pattern checks passed)
             call_python_guard "$input"
+
+            # Run UI consistency checks for UI files
+            call_ui_guard "$input"
             ;;
 
         Bash)
