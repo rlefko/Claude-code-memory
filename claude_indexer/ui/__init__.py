@@ -10,8 +10,27 @@ Main components:
 - config: Configuration loading and validation
 - storage: Qdrant collection management for UI data
 - token_adapters: Adapters for extracting tokens from CSS, Tailwind, JSON
+- normalizers: Style and component normalization for duplicate detection
+- collectors: Source code and git diff collection for UI analysis
 """
 
+from .collectors import (
+    BaseSourceAdapter,
+    DiffResult,
+    ExtractedComponent,
+    ExtractedStyle,
+    ExtractionResult,
+    FileChange,
+    GitDiffCollector,
+    SourceCollector,
+)
+from .collectors.adapters import (
+    CSSAdapter,
+    GenericAdapter,
+    ReactAdapter,
+    SvelteAdapter,
+    VueAdapter,
+)
 from .config import (
     UIConfigLoader,
     UIQualityConfig,
@@ -30,6 +49,25 @@ from .models import (
     SymbolRef,
     UIAnalysisResult,
     Visibility,
+)
+from .normalizers import (
+    ComponentNormalizer,
+    NormalizedComponent,
+    NormalizedStyle,
+    ResolutionStatus,
+    StyleNormalizer,
+    TokenCategory,
+    TokenResolution,
+    TokenResolver,
+)
+from .normalizers.hashing import (
+    compute_content_hash,
+    compute_minhash,
+    compute_simhash,
+    hamming_distance,
+    jaccard_similarity,
+    minhash_similarity,
+    simhash_similarity,
 )
 from .storage import (
     UI_RUNTIME_COLLECTION,
@@ -84,4 +122,36 @@ __all__ = [
     "create_style_payload",
     "create_runtime_payload",
     "generate_ui_point_id",
+    # Normalizers
+    "TokenCategory",
+    "ResolutionStatus",
+    "TokenResolution",
+    "TokenResolver",
+    "NormalizedStyle",
+    "StyleNormalizer",
+    "NormalizedComponent",
+    "ComponentNormalizer",
+    # Hashing utilities
+    "compute_simhash",
+    "simhash_similarity",
+    "hamming_distance",
+    "compute_minhash",
+    "minhash_similarity",
+    "jaccard_similarity",
+    "compute_content_hash",
+    # Collectors
+    "FileChange",
+    "DiffResult",
+    "GitDiffCollector",
+    "ExtractedComponent",
+    "ExtractedStyle",
+    "ExtractionResult",
+    "BaseSourceAdapter",
+    "SourceCollector",
+    # Framework Adapters
+    "CSSAdapter",
+    "ReactAdapter",
+    "VueAdapter",
+    "SvelteAdapter",
+    "GenericAdapter",
 ]
