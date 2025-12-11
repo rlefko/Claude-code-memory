@@ -1404,6 +1404,210 @@ else:
             click.echo(f"❌ Error: {e}", err=True)
             sys.exit(1)
 
+    # =========================================================================
+    # Ignore Commands - .claudeignore management
+    # =========================================================================
+
+    @cli.group()
+    def ignore() -> None:
+        """Manage .claudeignore patterns for file exclusion."""
+        pass
+
+    @ignore.command("add")
+    @click.argument("pattern")
+    @click.option("--global", "global_", is_flag=True, help="Add to global .claudeignore (~/.claude-indexer/.claudeignore)")
+    @click.option("--project", "-p", type=click.Path(), help="Project directory (default: current directory)")
+    @common_options
+    def ignore_add(pattern: str, global_: bool, project: str, verbose: bool, quiet: bool, config: str) -> None:
+        """Add a pattern to .claudeignore file.
+
+        Examples:
+            claude-indexer ignore add "*.log"
+            claude-indexer ignore add --global ".env"
+            claude-indexer ignore add -p ./myproject "secrets/"
+        """
+        from pathlib import Path
+        import os
+
+        if global_:
+            ignore_dir = Path.home() / ".claude-indexer"
+            ignore_file = ignore_dir / ".claudeignore"
+        else:
+            project_path = Path(project).resolve() if project else Path.cwd()
+            ignore_file = project_path / ".claudeignore"
+
+        try:
+            # Ensure directory exists
+            ignore_file.parent.mkdir(parents=True, exist_ok=True)
+
+            # Check if pattern already exists
+            existing_patterns = []
+            if ignore_file.exists():
+                with open(ignore_file, "r", encoding="utf-8") as f:
+                    existing_patterns = [line.strip() for line in f if line.strip() and not line.startswith("#")]
+
+            if pattern in existing_patterns:
+                if not quiet:
+                    click.echo(f"Pattern '{pattern}' already exists in {ignore_file}")
+                return
+
+            # Append pattern
+            with open(ignore_file, "a", encoding="utf-8") as f:
+                if ignore_file.stat().st_size > 0:
+                    # Check if file ends with newline
+                    with open(ignore_file, "r", encoding="utf-8") as rf:
+                        content = rf.read()
+                        if not content.endswith("\n"):
+                            f.write("\n")
+                f.write(f"{pattern}\n")
+
+            if not quiet:
+                location = "global" if global_ else f"project ({ignore_file})"
+                click.echo(f"Added pattern '{pattern}' to {location} .claudeignore")
+
+        except Exception as e:
+            click.echo(f"Error adding pattern: {e}", err=True)
+            sys.exit(1)
+
+    @ignore.command("list")
+    @click.option("--global", "global_", is_flag=True, help="Show global patterns")
+    @click.option("--project", "-p", type=click.Path(), help="Project directory (default: current directory)")
+    @click.option("--all", "show_all", is_flag=True, help="Show all patterns (universal + global + project)")
+    @common_options
+    def ignore_list(global_: bool, project: str, show_all: bool, verbose: bool, quiet: bool, config: str) -> None:
+        """List active ignore patterns with their sources.
+
+        Examples:
+            claude-indexer ignore list
+            claude-indexer ignore list --all
+            claude-indexer ignore list --global
+        """
+        from .utils.hierarchical_ignore import HierarchicalIgnoreManager
+
+        project_path = Path(project).resolve() if project else Path.cwd()
+
+        try:
+            manager = HierarchicalIgnoreManager(project_path).load()
+            stats = manager.get_stats()
+
+            if show_all:
+                click.echo(f"Total patterns: {stats['total_patterns']}")
+                click.echo(f"  Universal defaults: {stats['universal_patterns']}")
+                click.echo(f"  Global patterns: {stats['global_patterns']}")
+                click.echo(f"  Project patterns: {stats['project_patterns']}")
+                click.echo()
+
+                if verbose:
+                    click.echo("All patterns:")
+                    for pattern in manager.patterns:
+                        click.echo(f"  {pattern}")
+            elif global_:
+                global_file = Path.home() / ".claude-indexer" / ".claudeignore"
+                if global_file.exists():
+                    click.echo(f"Global patterns ({global_file}):")
+                    with open(global_file, "r", encoding="utf-8") as f:
+                        for line in f:
+                            line = line.strip()
+                            if line and not line.startswith("#"):
+                                click.echo(f"  {line}")
+                else:
+                    click.echo("No global .claudeignore found")
+            else:
+                project_file = project_path / ".claudeignore"
+                if project_file.exists():
+                    click.echo(f"Project patterns ({project_file}):")
+                    with open(project_file, "r", encoding="utf-8") as f:
+                        for line in f:
+                            line = line.strip()
+                            if line and not line.startswith("#"):
+                                click.echo(f"  {line}")
+                else:
+                    click.echo(f"No .claudeignore found at {project_file}")
+
+        except Exception as e:
+            click.echo(f"Error listing patterns: {e}", err=True)
+            sys.exit(1)
+
+    @ignore.command("test")
+    @click.argument("path")
+    @click.option("--project", "-p", type=click.Path(), help="Project directory (default: current directory)")
+    @common_options
+    def ignore_test(path: str, project: str, verbose: bool, quiet: bool, config: str) -> None:
+        """Test if a path would be ignored.
+
+        Examples:
+            claude-indexer ignore test src/secret.key
+            claude-indexer ignore test node_modules/package.json
+        """
+        from .utils.hierarchical_ignore import HierarchicalIgnoreManager
+
+        project_path = Path(project).resolve() if project else Path.cwd()
+
+        try:
+            manager = HierarchicalIgnoreManager(project_path).load()
+            would_ignore = manager.should_ignore(path)
+            reason = manager.get_ignore_reason(path)
+
+            if would_ignore:
+                click.echo(f"IGNORED: {path}")
+                if reason:
+                    click.echo(f"  Reason: {reason}")
+            else:
+                click.echo(f"INCLUDED: {path}")
+                click.echo("  (Does not match any ignore patterns)")
+
+        except Exception as e:
+            click.echo(f"Error testing path: {e}", err=True)
+            sys.exit(1)
+
+    @ignore.command("init")
+    @click.option("--project", "-p", type=click.Path(), help="Project directory (default: current directory)")
+    @click.option("--force", is_flag=True, help="Overwrite existing .claudeignore")
+    @click.option("--global", "global_", is_flag=True, help="Initialize global .claudeignore")
+    @common_options
+    def ignore_init(project: str, force: bool, global_: bool, verbose: bool, quiet: bool, config: str) -> None:
+        """Initialize .claudeignore from template.
+
+        Creates a new .claudeignore file with recommended patterns for
+        secrets, AI/ML artifacts, and common development files.
+
+        Examples:
+            claude-indexer ignore init
+            claude-indexer ignore init --global
+            claude-indexer ignore init -p ./myproject --force
+        """
+        from .utils.hierarchical_ignore import create_default_claudeignore
+
+        if global_:
+            target_dir = Path.home() / ".claude-indexer"
+            target_file = target_dir / ".claudeignore"
+        else:
+            project_path = Path(project).resolve() if project else Path.cwd()
+            target_file = project_path / ".claudeignore"
+
+        try:
+            if target_file.exists() and not force:
+                click.echo(f"File already exists: {target_file}")
+                click.echo("Use --force to overwrite")
+                sys.exit(1)
+
+            created_file = create_default_claudeignore(target_file.parent)
+
+            if not quiet:
+                click.echo(f"Created .claudeignore at: {created_file}")
+                if verbose:
+                    click.echo("\nIncluded pattern categories:")
+                    click.echo("  - Secrets and credentials")
+                    click.echo("  - AI/ML artifacts")
+                    click.echo("  - Personal development files")
+                    click.echo("  - Test artifacts")
+                    click.echo("  - Debug and profiling")
+                    click.echo("  - Temporary files")
+
+        except Exception as e:
+            click.echo(f"Error initializing .claudeignore: {e}", err=True)
+            sys.exit(1)
+
     @cli.command()
     @project_options
     @click.argument("query")

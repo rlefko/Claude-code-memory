@@ -3,6 +3,7 @@
 # This file works like .gitignore but is specifically for controlling
 # what gets indexed into semantic memory. Use this for:
 #
+# - Secrets and credentials that should NEVER be indexed
 # - Personal notes and TODOs that shouldn't pollute the knowledge graph
 # - Test outputs and coverage reports that vary by developer
 # - Debug artifacts and temporary files
@@ -10,13 +11,91 @@
 #
 # Syntax is identical to .gitignore:
 # - Lines starting with # are comments
-# - * matches any string
-# - ? matches any single character
+# - * matches any string (single level)
+# - ** matches any string including directory separators
 # - / at end denotes a directory
 # - / at start makes pattern relative to project root
+# - ! negates a pattern (includes previously excluded files)
 #
-# Note: .gitignore patterns are automatically respected.
+# Note: .gitignore patterns are automatically respected via the universal defaults.
 # This file is for ADDITIONAL exclusions specific to indexing.
+
+# ============================================================================
+# SECRETS AND CREDENTIALS (CRITICAL - NEVER INDEX)
+# ============================================================================
+
+# Environment files containing secrets
+.env
+.env.*
+!.env.example
+!.env.template
+!.env.sample
+*.env
+.envrc
+
+# API keys and credentials
+**/credentials.json
+**/secrets.json
+**/serviceAccountKey.json
+**/*.pem
+**/*.key
+**/*.p12
+**/*.pfx
+**/auth.json
+**/.netrc
+**/.npmrc
+**/.pypirc
+
+# Cloud provider credentials
+**/.aws/credentials
+**/.aws/config
+**/.azure/
+**/.gcloud/
+**/google-cloud-credentials*.json
+
+# SSH keys (should never be indexed)
+**/.ssh/
+**/id_rsa*
+**/id_ed25519*
+**/id_dsa*
+
+# ============================================================================
+# AI/ML ARTIFACTS (Large Binary Files)
+# ============================================================================
+
+# Model files
+*.h5
+*.hdf5
+*.pkl
+*.pickle
+*.joblib
+*.onnx
+*.pt
+*.pth
+*.safetensors
+*.ckpt
+*.bin
+*.model
+*.weights
+
+# TensorFlow/Keras
+*.pb
+*.tflite
+saved_model/
+
+# Datasets (usually too large for indexing)
+*.csv
+*.parquet
+*.arrow
+*.feather
+*.npy
+*.npz
+
+# Embeddings and vectors
+*.vec
+*.vectors
+embeddings/
+vectors/
 
 # ============================================================================
 # Personal Development Files
@@ -28,6 +107,8 @@
 TODO-*.md
 NOTES.md
 scratch.*
+personal/
+.personal/
 
 # ============================================================================
 # Test Artifacts
@@ -37,10 +118,18 @@ scratch.*
 test-results/
 test-output/
 .coverage
+.coverage.*
 htmlcov/
 coverage/
+coverage.xml
 .pytest_cache/
+.hypothesis/
 junit.xml
+*.junit.xml
+
+# Snapshot files (may be large)
+__snapshots__/
+*.snap
 
 # ============================================================================
 # Debug and Profiling
@@ -48,13 +137,17 @@ junit.xml
 
 # Debug output
 debug-*.log
+debug/
 *.dump
 *.prof
 *.trace
+*.heapsnapshot
+*.cpuprofile
 
 # Profiling results
 profile/
 .pprof/
+profiles/
 
 # ============================================================================
 # Temporary and Generated Files
@@ -65,10 +158,14 @@ tmp/
 temp/
 *.tmp
 *.temp
+*.bak
+*.swp
+*~
 
-# Generated documentation (optional - comment out if you want these indexed)
+# Generated documentation (optional - uncomment if you want these indexed)
 # docs/build/
 # site/
+# _build/
 
 # ============================================================================
 # Large Data Files
@@ -76,8 +173,30 @@ temp/
 
 # Data dumps and exports (add specific patterns as needed)
 # data/exports/
-# *.csv
+# data/raw/
 # *.json.gz
+
+# Database dumps
+*.sql.gz
+*.sql.bz2
+*.dump
+
+# ============================================================================
+# Negation Examples (Include specific files)
+# ============================================================================
+
+# Include example environment files
+!.env.example
+!.env.template
+!.env.sample
+
+# Include test fixtures (uncomment if needed)
+# !tests/fixtures/**
+# !test/fixtures/**
+
+# Include documentation config files
+!mkdocs.yml
+!docs/conf.py
 
 # ============================================================================
 # Your Custom Patterns Below

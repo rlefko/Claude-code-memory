@@ -111,12 +111,12 @@ Create a "magical" developer experience where Claude Code acts as an expert pair
 
 | ID | Task | Priority | Status |
 |----|------|----------|--------|
-| 0.2.1 | Create `.claudeignore` parser (gitignore-compatible) | HIGH | NEW |
-| 0.2.2 | Integrate with indexer (skip ignored files) | HIGH | PARTIAL |
-| 0.2.3 | Integrate with MCP server (filter search results) | HIGH | NEW |
-| 0.2.4 | Create default `.claudeignore` template | MEDIUM | NEW |
-| 0.2.5 | Add CLI command: `claude-indexer ignore [pattern]` | LOW | NEW |
-| 0.2.6 | Implement hierarchical ignore (global + project) | MEDIUM | NEW |
+| 0.2.1 | Create `.claudeignore` parser (gitignore-compatible) | HIGH | DONE |
+| 0.2.2 | Integrate with indexer (skip ignored files) | HIGH | DONE |
+| 0.2.3 | Integrate with MCP server (filter search results) | HIGH | DONE |
+| 0.2.4 | Create default `.claudeignore` template | MEDIUM | DONE |
+| 0.2.5 | Add CLI command: `claude-indexer ignore [pattern]` | LOW | DONE |
+| 0.2.6 | Implement hierarchical ignore (global + project) | MEDIUM | DONE |
 
 **Default .claudeignore Template**:
 ```gitignore
@@ -143,13 +143,13 @@ build/
 ```
 
 **Testing Requirements**:
-- [ ] Unit tests for pattern matching
-- [ ] Integration tests with indexer
-- [ ] Test inheritance (global + project)
+- [x] Unit tests for pattern matching
+- [x] Integration tests with indexer
+- [x] Test inheritance (global + project)
 
 **Documentation**:
-- [ ] `.claudeignore` format specification
-- [ ] Common patterns for different project types
+- [x] `.claudeignore` format specification
+- [x] Common patterns for different project types
 
 **Success Criteria**:
 - Secrets never indexed or searchable

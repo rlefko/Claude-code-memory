@@ -22,7 +22,15 @@ from .progress_bar import BatchProgressBar
 
 logger = get_logger()
 
-# Import ExclusionManager for enhanced pattern detection
+# Import HierarchicalIgnoreManager for .claudeignore support
+try:
+    from .utils.hierarchical_ignore import HierarchicalIgnoreManager
+    HIERARCHICAL_IGNORE_AVAILABLE = True
+except ImportError:
+    HIERARCHICAL_IGNORE_AVAILABLE = False
+    logger.debug("HierarchicalIgnoreManager not available, using config patterns only")
+
+# Legacy import for backward compatibility
 try:
     # Add utils directory to path if not already there
     utils_path = Path(__file__).parent.parent / "utils"
@@ -153,8 +161,24 @@ class CoreIndexer:
             )
             self.logger.info(f"🚀 Parallel processing enabled with {self.parallel_processor.current_workers} workers")
 
-        # Enhance exclusion patterns with ExclusionManager if available
-        if EXCLUSION_MANAGER_AVAILABLE:
+        # Initialize hierarchical ignore manager for .claudeignore support
+        self.ignore_manager = None
+        if HIERARCHICAL_IGNORE_AVAILABLE:
+            try:
+                self.ignore_manager = HierarchicalIgnoreManager(project_path).load()
+                stats = self.ignore_manager.get_stats()
+                self.logger.debug(
+                    f"Hierarchical ignore loaded: {stats['total_patterns']} patterns "
+                    f"(universal: {stats['universal_patterns']}, "
+                    f"global: {stats['global_patterns']}, "
+                    f"project: {stats['project_patterns']})"
+                )
+            except Exception as e:
+                self.logger.warning(f"Could not load hierarchical ignore: {e}")
+                self.ignore_manager = None
+
+        # Fallback: Enhance exclusion patterns with legacy ExclusionManager
+        if self.ignore_manager is None and EXCLUSION_MANAGER_AVAILABLE:
             try:
                 exclusion_mgr = ExclusionManager(project_path)
                 enhanced_patterns = exclusion_mgr.get_all_patterns()
@@ -168,7 +192,7 @@ class CoreIndexer:
                 self.config.exclude_patterns = all_patterns
 
                 self.logger.debug(
-                    f"Enhanced exclusions: {len(enhanced_patterns)} patterns "
+                    f"Legacy exclusions: {len(enhanced_patterns)} patterns "
                     f"(.gitignore + .claudeignore + universal defaults + binaries)"
                 )
             except Exception as e:
@@ -1253,37 +1277,43 @@ class CoreIndexer:
             found = list(self.project_path.glob(glob_pattern))
             files.update(found)  # Use update instead of extend to prevent duplicates
 
-        # Filter files
+        # Filter files using HierarchicalIgnoreManager (preferred) or legacy patterns
         filtered_files = []
         for file_path in files:
-            # Skip files matching exclude patterns
             relative_path = file_path.relative_to(self.project_path)
-            should_exclude = False
-            relative_str = str(relative_path)
 
-            for pattern in exclude_patterns:
-                # Handle directory patterns (ending with /)
-                if pattern.endswith("/"):
-                    # Check if pattern appears anywhere in the path (for nested directories)
-                    if (
-                        relative_str.startswith(pattern)
-                        or f"/{pattern}" in f"/{relative_str}"
+            # Use HierarchicalIgnoreManager if available (proper gitignore semantics)
+            if self.ignore_manager is not None:
+                if self.ignore_manager.should_ignore(relative_path):
+                    continue
+            else:
+                # Legacy fallback: manual pattern matching
+                should_exclude = False
+                relative_str = str(relative_path)
+
+                for pattern in exclude_patterns:
+                    # Handle directory patterns (ending with /)
+                    if pattern.endswith("/"):
+                        # Check if pattern appears anywhere in the path (for nested directories)
+                        if (
+                            relative_str.startswith(pattern)
+                            or f"/{pattern}" in f"/{relative_str}"
+                        ):
+                            should_exclude = True
+                            break
+                    # Handle glob patterns and exact matches
+                    elif (
+                        fnmatch.fnmatch(str(relative_path), pattern)
+                        or fnmatch.fnmatch(relative_path.name, pattern)
+                        or any(
+                            fnmatch.fnmatch(part, pattern) for part in relative_path.parts
+                        )
                     ):
                         should_exclude = True
                         break
-                # Handle glob patterns and exact matches
-                elif (
-                    fnmatch.fnmatch(str(relative_path), pattern)
-                    or fnmatch.fnmatch(relative_path.name, pattern)
-                    or any(
-                        fnmatch.fnmatch(part, pattern) for part in relative_path.parts
-                    )
-                ):
-                    should_exclude = True
-                    break
 
-            if should_exclude:
-                continue
+                if should_exclude:
+                    continue
 
             # Check file size
             if file_path.stat().st_size > self.config.max_file_size:
