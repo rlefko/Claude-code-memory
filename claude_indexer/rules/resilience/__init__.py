@@ -10,6 +10,9 @@ Rules in this module:
 - RESILIENCE.UNSAFE_LOOP - Detects loops without clear termination
 - RESILIENCE.UNSAFE_RESOURCE - Detects unclosed resources (memory leaks)
 - RESILIENCE.UNSAFE_CONCURRENCY - Detects race conditions and concurrency issues
+- RESILIENCE.SWALLOWED_EXCEPTIONS - Detects silently swallowed exceptions
+- RESILIENCE.MISSING_TIMEOUT - Detects network calls without timeout
+- RESILIENCE.MISSING_RETRY - Detects network operations without retry logic
 """
 
 # Rules will be auto-discovered from this directory

@@ -2,7 +2,9 @@
 Unit tests for the Resilience rules.
 
 Tests for RESILIENCE.UNSAFE_NULL, RESILIENCE.UNSAFE_LOOP,
-RESILIENCE.UNSAFE_RESOURCE, and RESILIENCE.UNSAFE_CONCURRENCY rules.
+RESILIENCE.UNSAFE_RESOURCE, RESILIENCE.UNSAFE_CONCURRENCY,
+RESILIENCE.SWALLOWED_EXCEPTIONS, RESILIENCE.MISSING_TIMEOUT,
+and RESILIENCE.MISSING_RETRY rules.
 """
 
 from pathlib import Path
@@ -413,9 +415,7 @@ def update_counter():
         findings = rule.check(context)
         # Global still flagged, but lock provides some protection
         # The rule should recognize the lock context
-        assert len(findings) == 0 or any(
-            f.confidence < 1.0 for f in findings
-        )
+        assert len(findings) == 0 or any(f.confidence < 1.0 for f in findings)
 
     def test_detects_js_blocking_loop(self, rule):
         """Test detection of blocking while loop in JS."""
@@ -441,6 +441,346 @@ def update():
 
 
 # =============================================================================
+# Swallowed Exception Rule Tests
+# =============================================================================
+
+
+class TestSwallowedExceptionRule:
+    """Tests for RESILIENCE.SWALLOWED_EXCEPTIONS rule."""
+
+    @pytest.fixture
+    def rule(self):
+        from claude_indexer.rules.resilience.swallowed_exceptions import (
+            SwallowedExceptionRule,
+        )
+
+        return SwallowedExceptionRule()
+
+    def test_rule_metadata(self, rule):
+        """Test rule has correct metadata."""
+        assert rule.rule_id == "RESILIENCE.SWALLOWED_EXCEPTIONS"
+        assert rule.category == "resilience"
+        assert rule.default_severity == Severity.HIGH
+        assert rule.is_fast is True
+
+    def test_detects_python_except_pass(self, rule):
+        """Test detection of except: pass."""
+        content = """
+try:
+    risky_operation()
+except:
+    pass
+"""
+        context = create_context(content, "python")
+        findings = rule.check(context)
+        assert len(findings) == 1
+        # Check for various descriptive terms in the summary
+        summary_lower = findings[0].summary.lower()
+        assert any(
+            term in summary_lower
+            for term in ["swallowed", "ignored", "empty", "silently"]
+        )
+
+    def test_detects_python_named_except_pass(self, rule):
+        """Test detection of except Exception: pass."""
+        content = """
+try:
+    risky_operation()
+except Exception:
+    pass
+"""
+        context = create_context(content, "python")
+        findings = rule.check(context)
+        assert len(findings) == 1
+
+    def test_detects_python_except_with_alias_pass(self, rule):
+        """Test detection of except Exception as e: pass."""
+        content = """
+try:
+    risky_operation()
+except Exception as e:
+    pass
+"""
+        context = create_context(content, "python")
+        findings = rule.check(context)
+        assert len(findings) == 1
+
+    def test_detects_js_empty_catch(self, rule):
+        """Test detection of catch(e) {}."""
+        content = """
+try {
+    riskyOperation();
+} catch (e) {}
+"""
+        context = create_context(content, "javascript", file_path="test.js")
+        findings = rule.check(context)
+        assert len(findings) == 1
+
+    def test_detects_js_promise_catch_empty(self, rule):
+        """Test detection of .catch(() => {})."""
+        content = "fetchData().catch(() => {});"
+        context = create_context(content, "javascript", file_path="test.js")
+        findings = rule.check(context)
+        assert len(findings) == 1
+
+    def test_ignores_catch_with_logging(self, rule):
+        """Test that catch with logging is not flagged."""
+        content = """
+try:
+    risky_operation()
+except Exception as e:
+    logger.error(f"Error: {e}")
+"""
+        context = create_context(content, "python")
+        findings = rule.check(context)
+        assert len(findings) == 0
+
+    def test_ignores_catch_with_rethrow(self, rule):
+        """Test that catch with re-throw is not flagged."""
+        content = """
+try:
+    risky_operation()
+except ValueError:
+    raise
+"""
+        context = create_context(content, "python")
+        findings = rule.check(context)
+        assert len(findings) == 0
+
+    def test_ignores_js_catch_with_console(self, rule):
+        """Test that JS catch with console.error is not flagged."""
+        content = """
+try {
+    riskyOperation();
+} catch (e) {
+    console.error(e);
+}
+"""
+        context = create_context(content, "javascript", file_path="test.js")
+        findings = rule.check(context)
+        assert len(findings) == 0
+
+    def test_provides_remediation_hints(self, rule):
+        """Test that findings include remediation hints."""
+        content = """
+try:
+    risky()
+except:
+    pass
+"""
+        context = create_context(content, "python")
+        findings = rule.check(context)
+        assert len(findings) == 1
+        assert len(findings[0].remediation_hints) > 0
+
+
+# =============================================================================
+# Missing Timeout Rule Tests
+# =============================================================================
+
+
+class TestMissingTimeoutRule:
+    """Tests for RESILIENCE.MISSING_TIMEOUT rule."""
+
+    @pytest.fixture
+    def rule(self):
+        from claude_indexer.rules.resilience.missing_timeout import MissingTimeoutRule
+
+        return MissingTimeoutRule()
+
+    def test_rule_metadata(self, rule):
+        """Test rule has correct metadata."""
+        assert rule.rule_id == "RESILIENCE.MISSING_TIMEOUT"
+        assert rule.category == "resilience"
+        assert rule.default_severity == Severity.MEDIUM
+        assert rule.is_fast is True
+
+    def test_detects_requests_get_without_timeout(self, rule):
+        """Test detection of requests.get() without timeout."""
+        content = "response = requests.get('https://api.example.com/data')"
+        context = create_context(content, "python")
+        findings = rule.check(context)
+        assert len(findings) == 1
+        assert "timeout" in findings[0].summary.lower()
+
+    def test_detects_requests_post_without_timeout(self, rule):
+        """Test detection of requests.post() without timeout."""
+        content = "response = requests.post('https://api.example.com/data', json=data)"
+        context = create_context(content, "python")
+        findings = rule.check(context)
+        assert len(findings) == 1
+
+    def test_ignores_requests_with_timeout(self, rule):
+        """Test that requests with timeout is not flagged."""
+        content = "response = requests.get('https://api.example.com/data', timeout=30)"
+        context = create_context(content, "python")
+        findings = rule.check(context)
+        assert len(findings) == 0
+
+    def test_ignores_requests_with_tuple_timeout(self, rule):
+        """Test that requests with tuple timeout is not flagged."""
+        content = "response = requests.get(url, timeout=(3.05, 27))"
+        context = create_context(content, "python")
+        findings = rule.check(context)
+        assert len(findings) == 0
+
+    def test_detects_js_fetch_without_signal(self, rule):
+        """Test detection of fetch() without AbortController."""
+        content = "const response = await fetch('https://api.example.com/data');"
+        context = create_context(content, "javascript", file_path="test.js")
+        findings = rule.check(context)
+        assert len(findings) == 1
+
+    def test_ignores_js_fetch_with_signal(self, rule):
+        """Test that fetch with signal is not flagged."""
+        content = """
+const controller = new AbortController();
+const response = await fetch(url, { signal: controller.signal });
+"""
+        context = create_context(content, "javascript", file_path="test.js")
+        findings = rule.check(context)
+        assert len(findings) == 0
+
+    def test_detects_axios_without_timeout(self, rule):
+        """Test detection of axios without timeout config."""
+        content = "const response = await axios.get('https://api.example.com/data');"
+        context = create_context(content, "javascript", file_path="test.js")
+        findings = rule.check(context)
+        assert len(findings) == 1
+
+    def test_ignores_axios_with_timeout(self, rule):
+        """Test that axios with timeout is not flagged."""
+        content = "const response = await axios.get(url, { timeout: 5000 });"
+        context = create_context(content, "javascript", file_path="test.js")
+        findings = rule.check(context)
+        assert len(findings) == 0
+
+    def test_provides_remediation_hints(self, rule):
+        """Test that findings include remediation hints."""
+        content = "response = requests.get(url)"
+        context = create_context(content, "python")
+        findings = rule.check(context)
+        assert len(findings) == 1
+        assert len(findings[0].remediation_hints) > 0
+        assert any("timeout" in hint.lower() for hint in findings[0].remediation_hints)
+
+
+# =============================================================================
+# Missing Retry Rule Tests
+# =============================================================================
+
+
+class TestMissingRetryRule:
+    """Tests for RESILIENCE.MISSING_RETRY rule."""
+
+    @pytest.fixture
+    def rule(self):
+        from claude_indexer.rules.resilience.missing_retry import MissingRetryRule
+
+        return MissingRetryRule()
+
+    def test_rule_metadata(self, rule):
+        """Test rule has correct metadata."""
+        assert rule.rule_id == "RESILIENCE.MISSING_RETRY"
+        assert rule.category == "resilience"
+        assert rule.default_severity == Severity.MEDIUM
+        assert rule.is_fast is True
+
+    def test_detects_requests_without_retry(self, rule):
+        """Test detection of requests call without retry."""
+        content = "response = requests.get(url)"
+        context = create_context(content, "python", file_path="module.py")
+        findings = rule.check(context)
+        assert len(findings) == 1
+        assert "retry" in findings[0].summary.lower()
+
+    def test_ignores_with_tenacity_decorator(self, rule):
+        """Test that function with tenacity retry is not flagged."""
+        content = """
+from tenacity import retry, stop_after_attempt
+
+@retry(stop=stop_after_attempt(3))
+def fetch_data(url):
+    response = requests.get(url)
+    return response.json()
+"""
+        context = create_context(content, "python")
+        findings = rule.check(context)
+        assert len(findings) == 0
+
+    def test_ignores_with_backoff_decorator(self, rule):
+        """Test that function with backoff decorator is not flagged."""
+        content = """
+import backoff
+
+@backoff.on_exception(backoff.expo, Exception, max_tries=3)
+def fetch_data(url):
+    response = requests.get(url)
+    return response.json()
+"""
+        context = create_context(content, "python")
+        findings = rule.check(context)
+        assert len(findings) == 0
+
+    def test_ignores_with_retry_loop(self, rule):
+        """Test that function with retry loop is not flagged."""
+        content = """
+def fetch_data(url):
+    max_retries = 3
+    for attempt in range(max_retries):
+        try:
+            response = requests.get(url)
+            return response.json()
+        except Exception:
+            if attempt == max_retries - 1:
+                raise
+"""
+        context = create_context(content, "python")
+        findings = rule.check(context)
+        assert len(findings) == 0
+
+    def test_detects_js_fetch_without_retry(self, rule):
+        """Test detection of JS fetch without retry."""
+        content = """
+async function fetchData(url) {
+    const response = await fetch(url);
+    return response.json();
+}
+"""
+        context = create_context(content, "javascript", file_path="module.js")
+        findings = rule.check(context)
+        assert len(findings) == 1
+
+    def test_lower_confidence_in_test_files(self, rule):
+        """Test that confidence is lower in test files."""
+        content = "response = requests.get(url)"
+        context_normal = create_context(content, "python", file_path="module.py")
+        context_test = create_context(content, "python", file_path="tests/test_api.py")
+
+        findings_normal = rule.check(context_normal)
+        findings_test = rule.check(context_test)
+
+        # Test file should have lower confidence or no findings
+        if findings_test:
+            assert findings_test[0].confidence < findings_normal[0].confidence
+
+    def test_provides_remediation_hints(self, rule):
+        """Test that findings include remediation hints."""
+        content = """
+def fetch(url):
+    return requests.get(url)
+"""
+        context = create_context(content, "python")
+        findings = rule.check(context)
+        if findings:
+            assert len(findings[0].remediation_hints) > 0
+            assert any(
+                "retry" in hint.lower() or "tenacity" in hint.lower()
+                for hint in findings[0].remediation_hints
+            )
+
+
+# =============================================================================
 # Cross-Rule Integration Tests
 # =============================================================================
 
@@ -450,6 +790,11 @@ class TestResilienceRulesIntegration:
 
     def test_all_rules_have_correct_category(self):
         """Test all resilience rules have correct category."""
+        from claude_indexer.rules.resilience.missing_retry import MissingRetryRule
+        from claude_indexer.rules.resilience.missing_timeout import MissingTimeoutRule
+        from claude_indexer.rules.resilience.swallowed_exceptions import (
+            SwallowedExceptionRule,
+        )
         from claude_indexer.rules.resilience.unsafe_concurrency import (
             UnsafeConcurrencyRule,
         )
@@ -462,6 +807,9 @@ class TestResilienceRulesIntegration:
             UnsafeLoopRule(),
             UnsafeResourceRule(),
             UnsafeConcurrencyRule(),
+            SwallowedExceptionRule(),
+            MissingTimeoutRule(),
+            MissingRetryRule(),
         ]
 
         for rule in rules:
@@ -470,6 +818,11 @@ class TestResilienceRulesIntegration:
 
     def test_all_rules_support_common_languages(self):
         """Test all rules support Python, JavaScript, TypeScript."""
+        from claude_indexer.rules.resilience.missing_retry import MissingRetryRule
+        from claude_indexer.rules.resilience.missing_timeout import MissingTimeoutRule
+        from claude_indexer.rules.resilience.swallowed_exceptions import (
+            SwallowedExceptionRule,
+        )
         from claude_indexer.rules.resilience.unsafe_concurrency import (
             UnsafeConcurrencyRule,
         )
@@ -482,6 +835,9 @@ class TestResilienceRulesIntegration:
             UnsafeLoopRule(),
             UnsafeResourceRule(),
             UnsafeConcurrencyRule(),
+            SwallowedExceptionRule(),
+            MissingTimeoutRule(),
+            MissingRetryRule(),
         ]
 
         for rule in rules:
@@ -492,6 +848,11 @@ class TestResilienceRulesIntegration:
 
     def test_all_rules_provide_remediation(self):
         """Test all rules provide remediation hints."""
+        from claude_indexer.rules.resilience.missing_retry import MissingRetryRule
+        from claude_indexer.rules.resilience.missing_timeout import MissingTimeoutRule
+        from claude_indexer.rules.resilience.swallowed_exceptions import (
+            SwallowedExceptionRule,
+        )
         from claude_indexer.rules.resilience.unsafe_concurrency import (
             UnsafeConcurrencyRule,
         )
@@ -505,12 +866,15 @@ class TestResilienceRulesIntegration:
             (UnsafeLoopRule(), "while True:\n    pass", "python"),
             (UnsafeResourceRule(), "f = open('file.txt')", "python"),
             (UnsafeConcurrencyRule(), "def f(x=[]):\n    pass", "python"),
+            (SwallowedExceptionRule(), "try:\n    x()\nexcept:\n    pass", "python"),
+            (MissingTimeoutRule(), "requests.get(url)", "python"),
+            (MissingRetryRule(), "def f():\n    requests.get(url)", "python"),
         ]
 
         for rule, content, language in test_cases:
             context = create_context(content, language)
             findings = rule.check(context)
             if findings:
-                assert len(findings[0].remediation_hints) > 0, (
-                    f"{rule.rule_id} should provide remediation hints"
-                )
+                assert (
+                    len(findings[0].remediation_hints) > 0
+                ), f"{rule.rule_id} should provide remediation hints"

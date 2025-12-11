@@ -660,18 +660,18 @@ class TokenDriftRule(BaseRule):
 
 | ID | Task | Priority | Rule Name | Status |
 |----|------|----------|-----------|--------|
-| 2.5.1 | Swallowed Exception Detection | HIGH | `swallowed_exceptions` | PARTIAL |
-| 2.5.2 | Missing Timeout Detection | MEDIUM | `missing_timeout` | PARTIAL |
-| 2.5.3 | Missing Retry Logic | MEDIUM | `missing_retry` | NEW |
-| 2.5.4 | Missing Docstring Detection | MEDIUM | `missing_docstring` | PARTIAL |
-| 2.5.5 | Outdated Documentation | LOW | `outdated_docs` | NEW |
+| 2.5.1 | Swallowed Exception Detection | HIGH | `swallowed_exceptions` | DONE |
+| 2.5.2 | Missing Timeout Detection | MEDIUM | `missing_timeout` | DONE |
+| 2.5.3 | Missing Retry Logic | MEDIUM | `missing_retry` | DONE |
+| 2.5.4 | Missing Docstring Detection | MEDIUM | `missing_docstring` | DONE |
+| 2.5.5 | Outdated Documentation | LOW | `outdated_docs` | DONE |
 
 **Implementation Location**: `claude_indexer/rules/resilience/` and `claude_indexer/rules/documentation/`
 
 **Testing Requirements**:
-- [ ] Unit tests for each rule
-- [ ] Test language-specific patterns
-- [ ] Test configuration options
+- [x] Unit tests for each rule
+- [x] Test language-specific patterns
+- [x] Test configuration options
 
 **Documentation**:
 - [ ] Rule reference documentation
@@ -681,6 +681,17 @@ class TokenDriftRule(BaseRule):
 - Catches common resilience anti-patterns
 - Documentation coverage metrics
 - Configurable severity
+
+**Implementation Notes (v2.9.6)**:
+- Created 3 resilience rules in `claude_indexer/rules/resilience/`:
+  - `swallowed_exceptions.py`: SwallowedExceptionRule - Detects empty catch blocks
+  - `missing_timeout.py`: MissingTimeoutRule - Detects network calls without timeout
+  - `missing_retry.py`: MissingRetryRule - Detects network operations without retry logic
+- Created 2 documentation rules in `claude_indexer/rules/documentation/`:
+  - `missing_docstring.py`: MissingDocstringRule - Detects undocumented functions/classes
+  - `outdated_docs.py`: OutdatedDocsRule - Detects parameter/signature mismatches
+- Multi-language support: Python, JavaScript, TypeScript
+- Comprehensive test suite: 60+ tests in test_resilience_rules.py and test_documentation_rules.py
 
 ---
 
