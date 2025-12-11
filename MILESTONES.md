@@ -27,7 +27,7 @@
 ### Vision
 Create a "magical" developer experience where Claude Code acts as an expert pair-programmer with persistent memory and automatic quality enforcement. The system catches issues before they enter the codebase while remaining invisible during normal development.
 
-### Current State (65-75% Complete)
+### Current State (70-80% Complete)
 | Component | Status | Notes |
 |-----------|--------|-------|
 | CLI Infrastructure | ✅ Complete | `claude-indexer` with 20+ commands |
@@ -38,9 +38,10 @@ Create a "magical" developer experience where Claude Code acts as an expert pair
 | Memory Guard v4.3 | ✅ Complete | 21+ pattern checks |
 | Multi-language Parser | ✅ Complete | 7 languages supported |
 | **Bulk Indexing Pipeline** | ✅ Complete | IndexingPipeline with resume capability (v2.9) |
+| **Incremental Indexing** | ✅ Complete | Git-aware updates with hash fallback (v2.9.1) |
+| **Rule Engine Framework** | ✅ Complete | BaseRule, RuleEngine, discovery, config (v2.9.2) |
 | One-Command Init | ❌ Missing | Core gap |
-| Incremental Indexing | 🔄 Partial | Git-aware updates need work |
-| All 27 Rules | 🔄 Partial | ~15 implemented |
+| All 27 Rules | 🔄 Partial | Framework done, 7 proof-of-concept rules |
 | Multi-Repo Isolation | 🔄 Partial | Framework exists |
 | Claude Self-Repair Loop | 🔄 Partial | Needs tighter integration |
 
@@ -406,11 +407,11 @@ class GitChangeDetector:
 |----|------|----------|--------|
 | 2.1.1 | Create `BaseRule` abstract class | HIGH | DONE |
 | 2.1.2 | Create `RuleEngine` coordinator | HIGH | DONE |
-| 2.1.3 | Implement rule discovery (auto-load from directory) | HIGH | NEW |
-| 2.1.4 | Add rule configuration (enable/disable, thresholds) | HIGH | NEW |
-| 2.1.5 | Create `RuleContext` with diff, memory access | HIGH | PARTIAL |
+| 2.1.3 | Implement rule discovery (auto-load from directory) | HIGH | DONE |
+| 2.1.4 | Add rule configuration (enable/disable, thresholds) | HIGH | DONE |
+| 2.1.5 | Create `RuleContext` with diff, memory access | HIGH | DONE |
 | 2.1.6 | Implement severity levels (CRITICAL, HIGH, MEDIUM, LOW) | HIGH | DONE |
-| 2.1.7 | Add auto-fix capability to rule interface | MEDIUM | NEW |
+| 2.1.7 | Add auto-fix capability to rule interface | MEDIUM | DONE |
 
 **Rule Interface**:
 ```python
@@ -435,9 +436,9 @@ class BaseRule(ABC):
 ```
 
 **Testing Requirements**:
-- [ ] Unit tests for rule engine
-- [ ] Test rule discovery mechanism
-- [ ] Test severity filtering
+- [x] Unit tests for rule engine
+- [x] Test rule discovery mechanism
+- [x] Test severity filtering
 
 **Documentation**:
 - [ ] Rule authoring guide in `docs/RULE_AUTHORING.md`
@@ -447,6 +448,25 @@ class BaseRule(ABC):
 - New rules can be added without code changes
 - Rules configurable via JSON
 - Clear finding messages
+
+**Implementation Notes (v2.9.2)**:
+- Created `claude_indexer/rules/` package with modular components:
+  - `base.py`: Severity, Trigger, DiffHunk, Evidence, Finding, RuleContext, BaseRule
+  - `engine.py`: RuleEngine coordinator with RuleEngineResult, RuleError, RuleExecutionResult
+  - `discovery.py`: RuleDiscovery for auto-loading rules from category directories
+  - `config.py`: RuleConfig, CategoryConfig, PerformanceConfig, RuleEngineConfig, RuleEngineConfigLoader
+  - `fix.py`: AutoFix dataclass with apply() method for automatic fixes
+- Category directories: `security/`, `tech_debt/`, `resilience/`, `documentation/`, `git/`
+- Proof-of-concept rules implemented:
+  - `TECH_DEBT.TODO_MARKERS` - Detects TODO, FIXME, HACK markers
+  - `TECH_DEBT.FIXME_MARKERS` - High-severity FIXME detection
+  - `TECH_DEBT.DEBUG_STATEMENTS` - Detects print(), console.log(), debugger
+  - `TECH_DEBT.BREAKPOINTS` - High-severity breakpoint detection
+  - `GIT.FORCE_PUSH` - Detects git push --force commands
+  - `GIT.HARD_RESET` - Detects git reset --hard commands
+  - `GIT.DESTRUCTIVE_OPS` - Detects rm -rf and other dangerous commands
+- Unit tests: 92 tests in `tests/unit/rules/` (all passing)
+- Configuration via `guard.config.json` with hierarchical merging (global → project → local)
 
 ---
 
