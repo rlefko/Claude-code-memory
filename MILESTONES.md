@@ -43,6 +43,7 @@ Create a "magical" developer experience where Claude Code acts as an expert pair
 | **Security Rules (11)** | ✅ Complete | All 11 OWASP rules implemented (v2.9.3) |
 | **Tech Debt Rules (11)** | ✅ Complete | All 11 rules implemented (v2.9.5) |
 | **Core PRD Rules (6)** | ✅ Complete | Token drift, duplication, unsafe (v2.9.5) |
+| **PostToolUse Hook** | ✅ Complete | Fast rules (<30ms), async indexing queue (v2.9.7) |
 | One-Command Init | ❌ Missing | Core gap |
 | All 27 Rules | ✅ Complete | 27+ rules implemented |
 | Multi-Repo Isolation | 🔄 Partial | Framework exists |
@@ -735,11 +736,20 @@ class TokenDriftRule(BaseRule):
 
 | ID | Task | Priority | Status |
 |----|------|----------|--------|
-| 3.1.1 | Create `after-write.sh` hook script | HIGH | PARTIAL |
-| 3.1.2 | Implement fast rule filtering (<300ms rules only) | HIGH | PARTIAL |
+| 3.1.1 | Create `after-write.sh` hook script | HIGH | DONE |
+| 3.1.2 | Implement fast rule filtering (<300ms rules only) | HIGH | DONE |
 | 3.1.3 | Add auto-formatting integration | MEDIUM | DONE |
-| 3.1.4 | Queue file for incremental indexing | HIGH | NEW |
-| 3.1.5 | Implement non-blocking async mode | MEDIUM | NEW |
+| 3.1.4 | Queue file for incremental indexing | HIGH | DONE |
+| 3.1.5 | Implement non-blocking async mode | MEDIUM | DONE |
+
+**Implementation Notes (v2.9.7)**:
+- Created `claude_indexer/hooks/` package with:
+  - `post_write.py`: PostWriteExecutor singleton for fast rule checks
+  - `index_queue.py`: IndexQueue with FileChangeCoalescer for async indexing
+- Added `claude-indexer post-write` CLI command (~8ms execution)
+- Created `hooks/after-write.sh` shell hook integrating rules + async indexing
+- Performance: <30ms typical, well under 300ms target
+- Unit tests: 33 tests in `tests/unit/hooks/` (all passing)
 
 **Hook Configuration** (`.claude/settings.json`):
 ```json
@@ -756,18 +766,18 @@ class TokenDriftRule(BaseRule):
 ```
 
 **Testing Requirements**:
-- [ ] Test with various file types
-- [ ] Verify <300ms execution time
-- [ ] Test async indexing queue
+- [x] Test with various file types (Python, JavaScript, Markdown)
+- [x] Verify <300ms execution time (achieved <30ms)
+- [x] Test async indexing queue
 
 **Documentation**:
-- [ ] Hook configuration guide
-- [ ] Customization options
+- [x] Hook configuration guide (in CLAUDE.md)
+- [x] Customization options (CLI --help)
 
 **Success Criteria**:
-- <300ms latency
-- No blocking on indexing
-- Formatting auto-applied
+- [x] <300ms latency (achieved ~8-30ms)
+- [x] No blocking on indexing (async queue with debouncing)
+- [x] Formatting auto-applied
 
 ---
 
