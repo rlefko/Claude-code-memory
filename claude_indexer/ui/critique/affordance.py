@@ -12,8 +12,8 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
-    from ..collectors.runtime import CrawlResult
     from ..collectors.pseudo_states import PseudoStateCapture
+    from ..collectors.runtime import CrawlResult
     from ..config import UIQualityConfig
     from ..models import RuntimeElementFingerprint
 
@@ -192,10 +192,7 @@ class AffordanceAnalyzer:
         default_bg = default_styles.get("background-color", "")
         focus_bg = focus_styles.get("background-color", "")
 
-        if focus_bg != default_bg:
-            return True
-
-        return False
+        return focus_bg != default_bg
 
     def _get_focus_ring_signature(self, focus_styles: dict[str, str]) -> str:
         """Get a signature for focus ring style for consistency checking."""
@@ -222,7 +219,7 @@ class AffordanceAnalyzer:
         metrics = FocusVisibilityMetrics()
 
         # Build lookup for pseudo states by selector
-        pseudo_by_selector: dict[str, "PseudoStateCapture"] = {}
+        pseudo_by_selector: dict[str, PseudoStateCapture] = {}
         if pseudo_states:
             for ps in pseudo_states:
                 pseudo_by_selector[ps.selector] = ps
@@ -326,7 +323,7 @@ class AffordanceAnalyzer:
         metrics = FormLayoutMetrics()
 
         # Group elements by page for context analysis
-        by_page: dict[str, list["RuntimeElementFingerprint"]] = defaultdict(list)
+        by_page: dict[str, list[RuntimeElementFingerprint]] = defaultdict(list)
         for fp in fingerprints:
             by_page[fp.page_id].append(fp)
 
@@ -389,7 +386,7 @@ class AffordanceAnalyzer:
         metrics = FeedbackStateMetrics()
 
         # Build lookup for pseudo states
-        pseudo_by_selector: dict[str, "PseudoStateCapture"] = {}
+        pseudo_by_selector: dict[str, PseudoStateCapture] = {}
         if pseudo_states:
             for ps in pseudo_states:
                 pseudo_by_selector[ps.selector] = ps
@@ -409,7 +406,7 @@ class AffordanceAnalyzer:
             if pseudo and pseudo.disabled_styles:
                 default_opacity = fp.computed_style_subset.get("opacity", "1")
                 disabled_opacity = pseudo.disabled_styles.get("opacity", "1")
-                default_cursor = fp.computed_style_subset.get("cursor", "")
+                fp.computed_style_subset.get("cursor", "")
                 disabled_cursor = pseudo.disabled_styles.get("cursor", "")
 
                 if (

@@ -4,7 +4,6 @@ import os
 import shutil
 import stat
 from pathlib import Path
-from typing import List
 
 from ..git_hooks import GitHooksManager
 from ..indexer_logging import get_logger
@@ -58,16 +57,16 @@ class HooksInstaller:
         # Create destination directory
         try:
             self.hooks_dest.mkdir(parents=True, exist_ok=True)
-        except IOError as e:
+        except OSError as e:
             return InitStepResult(
                 step_name="claude_hooks",
                 success=False,
                 message=f"Failed to create hooks directory: {e}",
             )
 
-        installed: List[str] = []
-        skipped: List[str] = []
-        failed: List[str] = []
+        installed: list[str] = []
+        skipped: list[str] = []
+        failed: list[str] = []
 
         for hook_file in self.CLAUDE_HOOK_FILES:
             source = self.HOOKS_SOURCE_DIR / hook_file
@@ -87,7 +86,7 @@ class HooksInstaller:
                 if hook_file.endswith(".sh"):
                     dest.chmod(dest.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP)
                 installed.append(hook_file)
-            except IOError as e:
+            except OSError as e:
                 logger.error(f"Failed to copy hook {hook_file}: {e}")
                 failed.append(hook_file)
 
@@ -207,14 +206,14 @@ class HooksInstaller:
                 message="No hooks directory found",
             )
 
-        removed: List[str] = []
+        removed: list[str] = []
         for hook_file in self.CLAUDE_HOOK_FILES:
             hook_path = self.hooks_dest / hook_file
             if hook_path.exists():
                 try:
                     hook_path.unlink()
                     removed.append(hook_file)
-                except IOError as e:
+                except OSError as e:
                     logger.error(f"Failed to remove {hook_file}: {e}")
 
         return InitStepResult(

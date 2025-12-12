@@ -17,7 +17,6 @@ Usage:
 
 import os
 from pathlib import Path
-from typing import List, Set
 
 # Universal exclusion patterns (always applied)
 UNIVERSAL_EXCLUDES = [
@@ -168,7 +167,7 @@ class ExclusionManager:
         self.gitignore_path = self.project_root / ".gitignore"
         self.claudeignore_path = self.project_root / ".claudeignore"
 
-    def get_all_patterns(self) -> List[str]:
+    def get_all_patterns(self) -> list[str]:
         """
         Get combined exclusion patterns from all layers.
 
@@ -253,13 +252,13 @@ class ExclusionManager:
                 for signature in BINARY_MAGIC_SIGNATURES:
                     if magic.startswith(signature):
                         return True
-        except (OSError, IOError):
+        except OSError:
             # If we can't read it, assume it might be binary
             return True
 
         return False
 
-    def _parse_ignore_file(self, ignore_path: Path) -> List[str]:
+    def _parse_ignore_file(self, ignore_path: Path) -> list[str]:
         """
         Parse .gitignore or .claudeignore file.
 
@@ -275,7 +274,7 @@ class ExclusionManager:
         patterns = []
 
         try:
-            with open(ignore_path, "r", encoding="utf-8") as f:
+            with open(ignore_path, encoding="utf-8") as f:
                 for line in f:
                     line = line.strip()
 
@@ -368,7 +367,7 @@ class ExclusionManager:
 # Backward compatibility functions
 
 
-def get_patterns_for_project(project_path: Path | str) -> List[str]:
+def get_patterns_for_project(project_path: Path | str) -> list[str]:
     """
     Convenience function to get all exclusion patterns for a project.
 
@@ -392,17 +391,17 @@ class GitignoreParser:
         self.project_root = Path(project_root).resolve()
         self.gitignore_path = self.project_root / ".gitignore"
 
-    def parse_gitignore(self) -> List[str]:
+    def parse_gitignore(self) -> list[str]:
         """Parse .gitignore and return list of exclude patterns."""
         return self.manager._parse_ignore_file(self.manager.gitignore_path)
 
-    def get_exclude_patterns(self, include_defaults: bool = True) -> List[str]:
+    def get_exclude_patterns(self, include_defaults: bool = True) -> list[str]:
         """Get complete set of exclude patterns."""
         if not include_defaults:
             return self.parse_gitignore()
         return self.manager.get_all_patterns()
 
-    def _get_default_patterns(self) -> List[str]:
+    def _get_default_patterns(self) -> list[str]:
         """Get default exclude patterns that should always apply."""
         return UNIVERSAL_EXCLUDES
 

@@ -211,7 +211,7 @@ class SignatureHashTable:
 
         try:
             with self._lock:
-                with open(self._cache_file, "r") as f:
+                with open(self._cache_file) as f:
                     data = json.load(f)
 
                 self._hash_table = {}

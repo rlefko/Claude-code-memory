@@ -7,7 +7,6 @@ don't explode unexpectedly when code changes are made.
 
 import json
 from pathlib import Path
-from typing import Any, Dict
 
 import pytest
 
@@ -15,8 +14,8 @@ import pytest
 try:
     from claude_indexer.ui.ci.audit_runner import CIAuditRunner
     from claude_indexer.ui.config import UIQualityConfig
-    from claude_indexer.ui.models import Finding, Severity
-    from claude_indexer.ui.rules.engine import RuleEngine
+    from claude_indexer.ui.models import Finding, Severity  # noqa: F401
+    from claude_indexer.ui.rules.engine import RuleEngine  # noqa: F401
 
     UI_MODULES_AVAILABLE = True
 except ImportError as e:
@@ -367,7 +366,7 @@ class TestFindingStability:
             key=lambda f: (f.rule_id, f.location.file_path, f.location.line),
         )
 
-        for f1, f2 in zip(sorted1, sorted2):
+        for f1, f2 in zip(sorted1, sorted2, strict=False):
             assert f1.rule_id == f2.rule_id
             assert f1.location.file_path == f2.location.file_path
             assert f1.severity == f2.severity

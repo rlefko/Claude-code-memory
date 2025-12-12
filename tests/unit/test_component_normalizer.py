@@ -241,7 +241,7 @@ class TestComponentNormalizer:
 
         # Both first two have div>span but with different second child
         # This should produce similar but not identical structures
-        near_duplicates = normalizer.find_near_duplicates(components, threshold=0.3)
+        normalizer.find_near_duplicates(components, threshold=0.3)
 
         # There should be near duplicates found (0,1) should be more similar than (0,2) or (1,2)
         # If no near duplicates found, verify the similarity behavior is correct

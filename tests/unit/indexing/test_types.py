@@ -1,8 +1,6 @@
 """Unit tests for indexing pipeline type definitions."""
 
-from datetime import datetime, timezone
-
-import pytest
+from datetime import UTC, datetime
 
 from claude_indexer.indexing.types import (
     BatchMetrics,
@@ -254,7 +252,7 @@ class TestCheckpointState:
 
     def test_to_dict(self):
         """Test serialization to dictionary."""
-        now = datetime.now(timezone.utc).isoformat()
+        now = datetime.now(UTC).isoformat()
         state = CheckpointState(
             collection_name="test-collection",
             project_path="/path/to/project",
@@ -277,7 +275,7 @@ class TestCheckpointState:
 
     def test_from_dict(self):
         """Test deserialization from dictionary."""
-        now = datetime.now(timezone.utc).isoformat()
+        now = datetime.now(UTC).isoformat()
         d = {
             "collection_name": "test-collection",
             "project_path": "/path/to/project",
@@ -299,7 +297,7 @@ class TestCheckpointState:
 
     def test_round_trip(self):
         """Test serialization round trip."""
-        now = datetime.now(timezone.utc).isoformat()
+        now = datetime.now(UTC).isoformat()
         original = CheckpointState(
             collection_name="test",
             project_path="/path",

@@ -4,19 +4,16 @@ Enhanced _process_file_batch method with parallel processing support.
 This module provides a replacement method that can be integrated into CoreIndexer.
 """
 
-import logging
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
 
 from .analysis.entities import Entity
 from .analysis.entities import EntityChunk as ChunkMetadata
 from .analysis.entities import Relation
-from .parallel_processor import ParallelFileProcessor
 
 
 def process_file_batch_with_parallel(
-    self, files: List[Path], collection_name: str, _verbose: bool = False
-) -> Tuple[List[Entity], List[Relation], List[ChunkMetadata], List[str], List[Path]]:
+    self, files: list[Path], collection_name: str, _verbose: bool = False
+) -> tuple[list[Entity], list[Relation], list[ChunkMetadata], list[str], list[Path]]:
     """
     Enhanced version of _process_file_batch with parallel processing support.
 
@@ -48,11 +45,11 @@ def process_file_batch_with_parallel(
         self.logger.debug(f"🚨   existing_points_check_failed: {e}")
 
     # Initialize result containers
-    all_entities: List[Entity] = []
-    all_relations: List[Relation] = []
-    all_implementation_chunks: List[ChunkMetadata] = []
-    errors: List[str] = []
-    successfully_processed_files: List[Path] = []
+    all_entities: list[Entity] = []
+    all_relations: list[Relation] = []
+    all_implementation_chunks: list[ChunkMetadata] = []
+    errors: list[str] = []
+    successfully_processed_files: list[Path] = []
 
     # Determine whether to use parallel processing
     use_parallel = (

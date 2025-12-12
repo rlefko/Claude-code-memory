@@ -326,7 +326,6 @@ class TestCrawlSingleTarget:
     async def test_crawl_handles_navigation_error(self):
         """Test that navigation errors are handled gracefully."""
         from claude_indexer.ui.collectors.runtime import (
-            CrawlResult,
             CrawlTarget,
             RuntimeCollector,
         )

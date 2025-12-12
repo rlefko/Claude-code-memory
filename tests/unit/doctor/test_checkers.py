@@ -6,8 +6,6 @@ from collections import namedtuple
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-import pytest
-
 from claude_indexer.doctor.checkers import (
     check_claude_cli,
     check_collection_exists,

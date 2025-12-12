@@ -1,9 +1,6 @@
 """Unit tests for UI quality configuration."""
 
 import json
-from pathlib import Path
-
-import pytest
 
 from claude_indexer.ui.config import (
     AllowedScales,
@@ -19,7 +16,6 @@ from claude_indexer.ui.config import (
     ViewportConfig,
     load_ui_config,
 )
-from claude_indexer.ui.tokens import ColorToken, SpacingToken, TokenSet
 
 
 class TestViewportConfig:

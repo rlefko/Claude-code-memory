@@ -8,16 +8,15 @@ Analyzes UI elements for:
 
 from collections import defaultdict
 from dataclasses import dataclass, field
-from statistics import mean, stdev
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from ..collectors.runtime import CrawlResult
     from ..collectors.screenshots import VisualClusteringResult
     from ..config import UIQualityConfig
-    from ..models import Evidence, RuntimeElementFingerprint
+    from ..models import RuntimeElementFingerprint
 
-from ..models import EvidenceType, Severity, SymbolRef
+from ..models import Severity
 
 
 @dataclass
@@ -288,14 +287,14 @@ class ConsistencyAnalyzer:
         role_metrics: dict[str, RoleVariantMetrics] = {}
 
         # Group fingerprints by role
-        by_role: dict[str, list["RuntimeElementFingerprint"]] = defaultdict(list)
+        by_role: dict[str, list[RuntimeElementFingerprint]] = defaultdict(list)
         for fp in fingerprints:
             if fp.role in self.ANALYZED_ROLES:
                 by_role[fp.role].append(fp)
 
         for role, fps in by_role.items():
             # Create style signatures for variant detection
-            signatures: dict[str, list["RuntimeElementFingerprint"]] = defaultdict(list)
+            signatures: dict[str, list[RuntimeElementFingerprint]] = defaultdict(list)
 
             for fp in fps:
                 # Create a signature from key style properties
@@ -352,7 +351,7 @@ class ConsistencyAnalyzer:
         outliers: list[OutlierMetrics] = []
 
         # Group by role
-        by_role: dict[str, list["RuntimeElementFingerprint"]] = defaultdict(list)
+        by_role: dict[str, list[RuntimeElementFingerprint]] = defaultdict(list)
         for fp in fingerprints:
             if fp.role in self.ANALYZED_ROLES:
                 by_role[fp.role].append(fp)
@@ -360,7 +359,7 @@ class ConsistencyAnalyzer:
         # Check key properties for outliers within each role
         properties_to_check = ["border-radius", "padding", "font-size", "font-weight"]
 
-        for role, fps in by_role.items():
+        for _role, fps in by_role.items():
             if len(fps) < 3:
                 continue  # Need at least 3 elements for meaningful outlier detection
 

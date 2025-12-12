@@ -310,7 +310,7 @@ class BaselineManager:
             return self._baseline
 
         try:
-            with open(self.baseline_path, "r") as f:
+            with open(self.baseline_path) as f:
                 data = json.load(f)
                 self._baseline = BaselineReport.from_dict(data)
 

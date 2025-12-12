@@ -1,9 +1,5 @@
 """Unit tests for claude_indexer.rules.discovery module."""
 
-from pathlib import Path
-
-import pytest
-
 from claude_indexer.rules.discovery import RuleDiscovery, discover_rules
 
 
@@ -99,7 +95,7 @@ class TestDiscoverRulesFunction:
         rules = discover_rules(categories=["tech_debt"])
         # Should only find tech_debt rules
         assert len(rules) >= 2
-        for rule_id in rules.keys():
+        for rule_id in rules:
             assert "TECH_DEBT" in rule_id
 
 
@@ -126,7 +122,7 @@ class TestRuleDiscoveryIntegration:
         discovery = RuleDiscovery()
         rules = discovery.discover_all()
 
-        for rule_id in rules.keys():
+        for rule_id in rules:
             # Rule IDs should be in format CATEGORY.RULE_NAME
             assert "." in rule_id
             parts = rule_id.split(".")

@@ -2,12 +2,11 @@
 
 import json
 import time
-from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 
-from claude_indexer.doctor.types import CheckResult, CheckStatus
+from claude_indexer.doctor.types import CheckStatus
 from claude_indexer.hooks.session_start import (
     IndexFreshnessResult,
     SessionStartExecutor,

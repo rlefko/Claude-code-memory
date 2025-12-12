@@ -236,9 +236,11 @@ def qdrant_store(qdrant_client) -> "QdrantStore":
         # Note: collection_name should be passed from fixture if needed
         # For now, skip cleanup since we use timestamped collections
         pass
-    except Exception:
-        # Skip cleanup if it fails
-        pass
+    except Exception as e:
+        # Log cleanup failures instead of silently ignoring them
+        import warnings
+
+        warnings.warn(f"QdrantStore cleanup failed: {e}", stacklevel=2)
 
     return store
 
@@ -353,6 +355,15 @@ qdrant_url={real_config.qdrant_url}
 
     config = load_config(settings_file)
     config.state_directory = state_dir  # Override state directory for tests
+
+    # Override include patterns for tests - only include source files, not config files
+    # Tests primarily create .py files, avoid including *.json which matches cache files
+    config.include_patterns = ["*.py", "*.js", "*.ts", "*.tsx"]
+
+    # Ensure test cache directories are excluded
+    if ".index_cache/" not in config.exclude_patterns:
+        config.exclude_patterns = list(config.exclude_patterns) + [".index_cache/"]
+
     return config
 
 
@@ -521,14 +532,18 @@ def cleanup_test_collections_on_failure():
             )  # deletion tests
         ]
 
-        import contextlib
-
         for collection_name in temp_test_collections:
-            with contextlib.suppress(Exception):
+            try:
                 client.delete_collection(collection_name)
+            except Exception as e:
+                # Log but don't fail - cleanup errors shouldn't break tests
+                print(f"Warning: Failed to cleanup collection {collection_name}: {e}")
 
-    except Exception:
-        pass  # Ignore all cleanup failures to not interfere with test results
+    except Exception as e:
+        # Log cleanup failures so they're visible in test output
+        import warnings
+
+        warnings.warn(f"Test collection cleanup failed: {e}", stacklevel=2)
 
 
 # ---------------------------------------------------------------------------
@@ -626,8 +641,8 @@ def wait_for_eventual_consistency(
             last_results = actual_count
 
         except Exception as e:
-            if verbose:
-                print(f"Search attempt {attempt} failed: {e}")
+            # Always log search errors - they indicate real problems
+            print(f"Search attempt {attempt} failed: {e}")
             # Continue retrying on search errors
 
         # Wait before next attempt with exponential backoff
@@ -685,14 +700,14 @@ def wait_for_collection_ready(
                 print(f"Attempt {attempt}: Collection '{collection_name}' not found")
 
         except Exception as e:
-            if verbose:
-                print(f"Attempt {attempt}: Collection check failed: {e}")
+            # Always log errors - they indicate real problems
+            print(f"Attempt {attempt}: Collection check failed: {e}")
 
         time.sleep(delay)
         delay = min(delay * 1.5, max_delay)
 
-    if verbose:
-        print(f"Timeout: Collection '{collection_name}' not ready after {timeout}s")
+    # Always log timeout - this is important for debugging
+    print(f"Timeout: Collection '{collection_name}' not ready after {timeout}s")
     return False
 
 

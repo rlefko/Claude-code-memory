@@ -181,13 +181,13 @@ def extra_function_{i}():
 
         for i in range(3):
 
-            def search_extra_function():
-                search_embedding = dummy_embedder.embed_single(f"extra_function_{i}")
+            def search_extra_function(idx=i):  # Bind loop var to default arg
+                search_embedding = dummy_embedder.embed_single(f"extra_function_{idx}")
                 hits = qdrant_store.search(collection_name, search_embedding, top_k=5)
                 return [
                     hit
                     for hit in hits
-                    if f"extra_function_{i}" in hit.payload.get("name", "")
+                    if f"extra_function_{idx}" in hit.payload.get("name", "")
                 ]
 
             consistency_achieved = wait_for_eventual_consistency(
@@ -463,16 +463,16 @@ def error_trigger_function():
         )
 
         # Initial indexing (will have errors but should succeed partially)
-        result1 = indexer.index_project(collection_name)
+        indexer.index_project(collection_name)
         # May succeed or fail depending on error handling, but should not crash
 
-        initial_count = qdrant_store.count(collection_name)
+        qdrant_store.count(collection_name)
 
         # Delete the error file
         error_file.unlink()
 
         # Re-index (cleanup should work despite previous errors)
-        result2 = indexer.index_project(collection_name)
+        indexer.index_project(collection_name)
         # Should succeed since error file is gone
 
         final_count = qdrant_store.count(collection_name)

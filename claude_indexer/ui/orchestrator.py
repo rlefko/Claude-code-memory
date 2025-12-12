@@ -127,7 +127,7 @@ class RedesignOrchestrator:
         self._config = config
 
         # Lazy-initialize components
-        self._runtime_collector: "RuntimeCollector | None" = None
+        self._runtime_collector: RuntimeCollector | None = None
         self._ci_runner: CIAuditRunner | None = None
         self._critique_engine: CritiqueEngine | None = None
         self._plan_generator: PlanGenerator | None = None
@@ -282,7 +282,7 @@ class RedesignOrchestrator:
                     config=self.config,
                 )
             return self._ci_runner.run()
-        except Exception as e:
+        except Exception:
             return None
 
     async def _run_runtime_collection(

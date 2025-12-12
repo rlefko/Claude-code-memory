@@ -1,8 +1,6 @@
 """Unit tests for baseline management."""
 
-import json
 import tempfile
-from datetime import datetime
 from pathlib import Path
 
 import pytest

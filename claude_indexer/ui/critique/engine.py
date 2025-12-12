@@ -21,7 +21,6 @@ from ..models import (
     EvidenceType,
     RuntimeElementFingerprint,
     Severity,
-    SymbolRef,
 )
 from .affordance import AffordanceAnalyzer
 from .consistency import ConsistencyAnalyzer

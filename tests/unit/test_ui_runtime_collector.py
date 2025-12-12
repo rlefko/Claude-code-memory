@@ -4,8 +4,6 @@ Tests RuntimeCollector, CrawlTarget, and CrawlResult with comprehensive
 mocking of Playwright dependencies.
 """
 
-import asyncio
-from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -399,7 +397,7 @@ class TestRuntimeCollectorInit:
         project_path = tmp_path / "project"
         project_path.mkdir()
 
-        collector = RuntimeCollector(
+        RuntimeCollector(
             config=mock_ui_config,
             project_path=project_path,
         )
@@ -538,7 +536,7 @@ class TestBuildTargetList:
 
         targets = collector.build_target_list()
 
-        viewport_names = set(t.viewport.name for t in targets)
+        viewport_names = {t.viewport.name for t in targets}
         assert "mobile" in viewport_names
         assert "tablet" in viewport_names
         assert "desktop" in viewport_names

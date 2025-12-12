@@ -1,8 +1,8 @@
 """Persistent disk-based embedding cache for reduced API calls and faster re-indexing."""
 
+import contextlib
 import hashlib
 import json
-import os
 import struct
 import time
 from pathlib import Path
@@ -66,7 +66,7 @@ class PersistentEmbeddingCache:
             self.embeddings_dir.mkdir(exist_ok=True)
 
             if self.index_file.exists():
-                with open(self.index_file, "r") as f:
+                with open(self.index_file) as f:
                     self._index = json.load(f)
                 self.logger.debug(
                     f"Loaded embedding cache with {len(self._index)} entries"
@@ -220,7 +220,7 @@ class PersistentEmbeddingCache:
         entries_to_remove = max(entries_to_remove, 1)
 
         removed_size = 0
-        for content_hash, entry in sorted_entries[:entries_to_remove]:
+        for content_hash, _entry in sorted_entries[:entries_to_remove]:
             embedding_file = self.embeddings_dir / f"{content_hash}.bin"
             try:
                 if embedding_file.exists():
@@ -300,10 +300,8 @@ class PersistentEmbeddingCache:
 
     def __del__(self) -> None:
         """Ensure index is saved on cleanup."""
-        try:
+        with contextlib.suppress(Exception):
             self._save_index()
-        except Exception:
-            pass
 
 
 def get_project_cache_dir(project_path: Path | str) -> Path:

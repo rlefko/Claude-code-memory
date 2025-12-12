@@ -379,7 +379,7 @@ class RelationProcessor(ContentProcessor):
             # self.logger.debug("🔍 === RELATION DEDUPLICATION ===")
             # self.logger.debug(f"   Total relations to process: {len(relations)}")
 
-        for i, relation in enumerate(relations):
+        for _i, relation in enumerate(relations):
             # Generate the same key that will be used for storage
             from ..analysis.entities import RelationChunk
 

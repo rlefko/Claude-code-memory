@@ -177,10 +177,7 @@ class NamingConventionsRule(BaseRule):
         """Check if name is a special/ignored name."""
         if name in self.IGNORED_NAMES:
             return True
-        for pattern in self.SPECIAL_PATTERNS:
-            if re.match(pattern, name):
-                return True
-        return False
+        return any(re.match(pattern, name) for pattern in self.SPECIAL_PATTERNS)
 
     def _to_snake_case(self, name: str) -> str:
         """Convert name to snake_case."""

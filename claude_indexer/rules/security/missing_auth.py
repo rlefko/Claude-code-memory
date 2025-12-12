@@ -300,10 +300,7 @@ class MissingAuthRule(BaseRule):
     ) -> bool:
         """Check if authentication is present in surrounding code."""
         text = " ".join(surrounding_lines)
-        for pattern in auth_patterns:
-            if re.search(pattern, text, re.IGNORECASE):
-                return True
-        return False
+        return any(re.search(pattern, text, re.IGNORECASE) for pattern in auth_patterns)
 
     def check(self, context: RuleContext) -> list[Finding]:
         """Check for missing authentication.

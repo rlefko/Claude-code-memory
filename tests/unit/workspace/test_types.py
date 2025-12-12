@@ -2,8 +2,6 @@
 
 from pathlib import Path
 
-import pytest
-
 from claude_indexer.workspace.types import (
     CollectionStrategy,
     WorkspaceConfig,

@@ -1,9 +1,6 @@
 """Unit tests for claude_indexer.rules.config module."""
 
 import json
-from pathlib import Path
-
-import pytest
 
 from claude_indexer.rules.base import Severity
 from claude_indexer.rules.config import (

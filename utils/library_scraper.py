@@ -10,7 +10,6 @@ import logging
 import re
 import time
 from pathlib import Path
-from typing import Dict, List, Set
 
 from crawl4ai import AsyncWebCrawler
 
@@ -32,7 +31,7 @@ class ModernDocsScraper:
         # Load site configurations from external JSON file
         config_path = config_file or Path(__file__).parent / "scraper_configs.json"
         try:
-            with open(config_path, "r", encoding="utf-8") as f:
+            with open(config_path, encoding="utf-8") as f:
                 self.site_configs = json.load(f)
             if not isinstance(self.site_configs, dict):
                 raise ValueError("Config must be a dictionary")
@@ -66,8 +65,8 @@ class ModernDocsScraper:
         self.output_dir.mkdir(parents=True, exist_ok=True)
 
         # Track processed content
-        self.scraped_content: List[Dict] = []
-        self.processed_urls: Set[str] = set()
+        self.scraped_content: list[dict] = []
+        self.processed_urls: set[str] = set()
         self.force_regenerate_markdown = force_regenerate_markdown
 
         # Load existing URL cache from stats file
@@ -110,11 +109,11 @@ class ModernDocsScraper:
 
         return cleaned.strip()
 
-    def load_url_cache(self) -> Dict[str, str]:
+    def load_url_cache(self) -> dict[str, str]:
         """Load URL content hashes from existing stats file"""
         try:
             if self.stats_file.exists():
-                with open(self.stats_file, "r", encoding="utf-8") as f:
+                with open(self.stats_file, encoding="utf-8") as f:
                     stats = json.load(f)
                 return stats.get("url_content_hashes", {})
             return {}
@@ -148,16 +147,15 @@ class ModernDocsScraper:
 
         try:
             # Load existing stats or create minimal structure
-            existing_stats = {}
             if self.stats_file.exists():
                 try:
-                    with open(self.stats_file, "r", encoding="utf-8") as f:
+                    with open(self.stats_file, encoding="utf-8") as f:
                         fcntl.flock(
                             f.fileno(), fcntl.LOCK_SH
                         )  # Shared lock for reading
-                        existing_stats = json.load(f)
+                        json.load(f)
                         fcntl.flock(f.fileno(), fcntl.LOCK_UN)  # Unlock
-                except:
+                except Exception:
                     pass
 
             # Simple hash cache only
@@ -176,7 +174,7 @@ class ModernDocsScraper:
 
     async def scrape_page(
         self, url: str, section: str = "unknown", semaphore: asyncio.Semaphore = None
-    ) -> Dict:
+    ) -> dict:
         """Scrape a single page using Crawl4AI with concurrency control"""
         # Apply concurrency control if semaphore provided
         if semaphore:
@@ -187,7 +185,7 @@ class ModernDocsScraper:
         else:
             return await self._scrape_page_internal(url, section)
 
-    async def _scrape_page_internal(self, url: str, section: str) -> Dict:
+    async def _scrape_page_internal(self, url: str, section: str) -> dict:
         """Internal scraping logic"""
         try:
             # First, get content to check if it changed
@@ -408,14 +406,14 @@ async def main():
 
     # Always scrape all sites from config
     config_path = Path(__file__).parent / "scraper_configs.json"
-    with open(config_path, "r", encoding="utf-8") as f:
+    with open(config_path, encoding="utf-8") as f:
         site_configs = json.load(f)
 
     all_content = []
     all_hash_caches = {}
     all_processed_urls = set()
 
-    for site_name in site_configs.keys():
+    for site_name in site_configs:
         print(f"\n🔄 Scraping {site_name}...")
         try:
             scraper = ModernDocsScraper(

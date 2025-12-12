@@ -12,13 +12,12 @@ from typing import Any
 
 from .analysis.entities import Entity, EntityChunk, Relation
 from .analysis.parser import ParserRegistry
-from .categorization import FileCategorizationSystem, ProcessingTier
+from .categorization import FileCategorizationSystem
 from .config import IndexerConfig
 from .embeddings.base import Embedder
 from .git import ChangeSet, GitChangeDetector
 from .indexer_logging import get_logger
 from .parallel_processor import ParallelFileProcessor
-from .progress_bar import BatchProgressBar
 from .storage.base import VectorStore
 
 logger = get_logger()
@@ -441,7 +440,7 @@ class CoreIndexer:
 
         try:
             # Get basic file info
-            relative_path = file_path.relative_to(self.project_path)
+            file_path.relative_to(self.project_path)
 
             # Create a simple entity for the file
             entity = Entity(
@@ -846,7 +845,7 @@ class CoreIndexer:
 
                 # Check memory usage and adjust batch size if needed
                 current_memory = process.memory_info().rss / 1024 / 1024  # MB
-                memory_used = current_memory - initial_memory
+                current_memory - initial_memory
 
                 if current_memory > memory_threshold_mb and effective_batch_size > 2:
                     old_size = effective_batch_size

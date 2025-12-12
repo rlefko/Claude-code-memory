@@ -165,8 +165,8 @@ def load_config(settings_file: Path | None = None, **overrides: Any) -> IndexerC
         if settings_file.is_dir():
             # It's a project directory
             project_path = settings_file
-        elif settings_file.name == "settings.txt" and settings_file.exists():
-            # It's an explicit settings file path
+        elif settings_file.is_file() or settings_file.suffix == ".txt":
+            # It's an explicit settings file path (includes test_settings.txt, etc.)
             explicit_settings_file = settings_file
             project_path = (
                 settings_file.parent

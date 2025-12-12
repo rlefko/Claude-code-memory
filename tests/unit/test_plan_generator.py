@@ -8,7 +8,6 @@ Tests cover:
 
 import pytest
 
-from claude_indexer.ui.config import UIQualityConfig
 from claude_indexer.ui.critique.engine import (
     CritiqueItem,
     CritiqueReport,
@@ -16,7 +15,7 @@ from claude_indexer.ui.critique.engine import (
 )
 from claude_indexer.ui.models import Evidence, EvidenceType, Severity
 from claude_indexer.ui.plan.generator import PlanGenerator, PlanGeneratorConfig
-from claude_indexer.ui.plan.prioritizer import PrioritizationConfig, TaskPrioritizer
+from claude_indexer.ui.plan.prioritizer import TaskPrioritizer
 from claude_indexer.ui.plan.task import ImplementationPlan, Task, TaskGroup
 
 

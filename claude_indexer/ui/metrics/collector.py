@@ -9,7 +9,7 @@ import subprocess
 import uuid
 from datetime import datetime
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 from .models import (
     MetricSnapshot,
@@ -62,7 +62,7 @@ class MetricsCollector:
             return self._report
 
         try:
-            with open(self.metrics_path, "r") as f:
+            with open(self.metrics_path) as f:
                 data = json.load(f)
                 self._report = MetricsReport.from_dict(data)
                 return self._report

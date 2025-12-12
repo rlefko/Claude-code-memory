@@ -111,7 +111,7 @@ class ParseResultCache:
             cache_file = self._index[content_hash]["path"]
 
             try:
-                with open(cache_file, "r") as f:
+                with open(cache_file) as f:
                     data = json.load(f)
                     self._hits += 1
                     # Update access time for LRU

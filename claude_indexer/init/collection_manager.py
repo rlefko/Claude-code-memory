@@ -1,7 +1,5 @@
 """Qdrant collection management for initialization."""
 
-from typing import List, Optional
-
 from ..config.config_loader import ConfigLoader
 from ..indexer_logging import get_logger
 from .types import InitStepResult
@@ -15,7 +13,7 @@ class CollectionManager:
     # Default vector size for voyage-3.5-lite embeddings
     DEFAULT_VECTOR_SIZE = 1024
 
-    def __init__(self, config_loader: Optional[ConfigLoader] = None):
+    def __init__(self, config_loader: ConfigLoader | None = None):
         """Initialize collection manager.
 
         Args:
@@ -266,7 +264,7 @@ class CollectionManager:
 
         return info
 
-    def list_all_collections(self) -> List[str]:
+    def list_all_collections(self) -> list[str]:
         """List all collections from Qdrant.
 
         Returns:
@@ -282,7 +280,7 @@ class CollectionManager:
             logger.debug(f"Error listing collections: {e}")
             return []
 
-    def list_collections_with_prefix(self, prefix: str) -> List[str]:
+    def list_collections_with_prefix(self, prefix: str) -> list[str]:
         """List collections matching a prefix.
 
         Args:
@@ -298,8 +296,8 @@ class CollectionManager:
     def find_stale_collections(
         self,
         prefix: str = "claude",
-        known_project_hashes: Optional[List[str]] = None,
-    ) -> List[dict]:
+        known_project_hashes: list[str] | None = None,
+    ) -> list[dict]:
         """Find stale collections that may be orphaned.
 
         A collection is considered stale if:
@@ -339,7 +337,7 @@ class CollectionManager:
 
     def cleanup_collections(
         self,
-        collections_to_delete: List[str],
+        collections_to_delete: list[str],
         dry_run: bool = True,
     ) -> InitStepResult:
         """Remove specified collections.

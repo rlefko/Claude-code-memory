@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING
 from ..base import BaseRule, Evidence, Finding, RuleContext, Severity, Trigger
 
 if TYPE_CHECKING:
-    pass
+    from ..fix import AutoFix
 
 
 class MissingHTTPSRule(BaseRule):

@@ -5,12 +5,8 @@ Tests the complete workflow: init -> index -> use -> modify -> commit
 Milestone 6.4: Test Coverage Complete (v2.9.20)
 """
 
-import os
 import shutil
 import subprocess
-import tempfile
-import time
-from pathlib import Path
 from unittest.mock import Mock, patch
 
 import pytest

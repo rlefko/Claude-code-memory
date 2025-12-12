@@ -192,17 +192,11 @@ class HardcodedSecretsRule(BaseRule):
 
     def _is_placeholder(self, value: str) -> bool:
         """Check if a detected value is a placeholder."""
-        for pattern in self.PLACEHOLDER_PATTERNS:
-            if re.search(pattern, value):
-                return True
-        return False
+        return any(re.search(pattern, value) for pattern in self.PLACEHOLDER_PATTERNS)
 
     def _is_skip_file(self, file_path: str) -> bool:
         """Check if file should be skipped based on name pattern."""
-        for pattern in self.SKIP_FILE_PATTERNS:
-            if re.search(pattern, file_path):
-                return True
-        return False
+        return any(re.search(pattern, file_path) for pattern in self.SKIP_FILE_PATTERNS)
 
     def _is_env_reference(self, line: str) -> bool:
         """Check if the line references environment variables."""
@@ -214,10 +208,7 @@ class HardcodedSecretsRule(BaseRule):
             r"getenv\(",
             r"\$\{[A-Z_]+\}",  # Shell variable substitution
         ]
-        for pattern in env_patterns:
-            if re.search(pattern, line):
-                return True
-        return False
+        return any(re.search(pattern, line) for pattern in env_patterns)
 
     def check(self, context: RuleContext) -> list[Finding]:
         """Check for hardcoded secrets in the file.

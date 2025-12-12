@@ -363,7 +363,7 @@ class JSONReporter:
         # Count fail severity
         fail_count = sum(1 for f in result.new_findings if f.severity == Severity.FAIL)
         fail_rules = list(
-            set(f.rule_id for f in result.new_findings if f.severity == Severity.FAIL)
+            {f.rule_id for f in result.new_findings if f.severity == Severity.FAIL}
         )
 
         if len(fail_rules) == 1:

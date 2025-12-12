@@ -93,7 +93,7 @@ class PseudoStateStyles:
             "transform",
             "opacity",
         }
-        return any(prop in meaningful_props for prop in diff.keys())
+        return any(prop in meaningful_props for prop in diff)
 
     def has_focus_ring(self) -> bool:
         """Check if element shows visible focus indication.

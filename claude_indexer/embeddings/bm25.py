@@ -1,12 +1,11 @@
 """BM25 sparse embeddings implementation for efficient keyword-based search."""
 
 import hashlib
-import json
 import math
 import pickle
 import time
 from pathlib import Path
-from typing import Any, cast
+from typing import Any
 
 from ..indexer_logging import get_logger
 from .base import Embedder, EmbeddingResult

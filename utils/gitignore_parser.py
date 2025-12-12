@@ -14,7 +14,6 @@ exclude patterns, ensuring build artifacts and generated files are never indexed
 """
 
 from pathlib import Path
-from typing import List
 
 # Import from new exclusion_manager for backward compatibility
 try:

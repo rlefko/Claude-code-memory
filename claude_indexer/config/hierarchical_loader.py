@@ -16,7 +16,7 @@ import json
 import os
 from copy import deepcopy
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 from ..indexer_logging import get_logger
 from .legacy import load_legacy_settings
@@ -72,7 +72,7 @@ class ConfigPaths:
         return new_dir
 
     @classmethod
-    def find_project_config(cls, project_path: Path) -> Optional[Path]:
+    def find_project_config(cls, project_path: Path) -> Path | None:
         """Find the project configuration file.
 
         Checks new location first, then legacy.
@@ -145,7 +145,7 @@ class HierarchicalConfigLoader:
         "include_tests": ("indexing", "include_tests"),
     }
 
-    def __init__(self, project_path: Optional[Path] = None):
+    def __init__(self, project_path: Path | None = None):
         """Initialize the configuration loader.
 
         Args:
@@ -485,7 +485,7 @@ class HierarchicalConfigLoader:
 
 
 def load_unified_config(
-    project_path: Optional[Path] = None, **overrides: Any
+    project_path: Path | None = None, **overrides: Any
 ) -> UnifiedConfig:
     """Load unified configuration from all sources.
 

@@ -110,7 +110,7 @@ class TestButtonOutlierRule:
         ]
 
         context = RuleContext(config=config, components=components)
-        findings = rule.evaluate(context)
+        rule.evaluate(context)
 
         # May detect outliers based on distribution analysis
         # The test validates the rule can run without error
@@ -126,7 +126,7 @@ class TestButtonOutlierRule:
         ]
 
         context = RuleContext(config=config, components=components)
-        findings = rule.evaluate(context)
+        rule.evaluate(context)
 
         # All consistent - should have no outlier findings
 
@@ -140,7 +140,7 @@ class TestButtonOutlierRule:
         ]
 
         context = RuleContext(config=config, components=components)
-        findings = rule.evaluate(context)
+        rule.evaluate(context)
 
         # Too few samples for statistical analysis (need min_samples=3)
 
@@ -170,7 +170,7 @@ class TestInputOutlierRule:
         ]
 
         context = RuleContext(config=config, components=components)
-        findings = rule.evaluate(context)
+        rule.evaluate(context)
 
         # Test validates rule can run without error
 
@@ -199,7 +199,7 @@ class TestCardOutlierRule:
         ]
 
         context = RuleContext(config=config, components=components)
-        findings = rule.evaluate(context)
+        rule.evaluate(context)
 
         # Test validates rule can run without error
 
@@ -261,7 +261,7 @@ class TestFocusRingInconsistentRule:
         ]
 
         context = RuleContext(config=config, components=components)
-        findings = rule.evaluate(context)
+        rule.evaluate(context)
 
         # Consistent focus styles should have no or few findings
 
@@ -274,7 +274,7 @@ class TestFocusRingInconsistentRule:
         ]
 
         context = RuleContext(config=config, components=components)
-        findings = rule.evaluate(context)
+        rule.evaluate(context)
 
         # Only one interactive element, not enough for comparison
 
@@ -361,7 +361,7 @@ class TestDistributionAnalysis:
 
         # Filter to buttons first
         buttons = rule._filter_by_role(components, "button")
-        distributions = rule._analyze_distributions(buttons)
+        rule._analyze_distributions(buttons)
 
         # Distributions dict should be returned (may be empty if no props extracted)
 

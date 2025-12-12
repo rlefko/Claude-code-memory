@@ -16,7 +16,7 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
 from .base import BaseRule, Finding, RuleContext, Severity, Trigger
-from .config import RuleConfig, RuleEngineConfig, RuleEngineConfigLoader
+from .config import RuleEngineConfig, RuleEngineConfigLoader
 from .discovery import RuleDiscovery
 
 if TYPE_CHECKING:
@@ -81,10 +81,7 @@ class RuleEngineResult:
         Returns:
             True if any findings meet or exceed the threshold
         """
-        for finding in self.findings:
-            if finding.severity >= severity_threshold:
-                return True
-        return False
+        return any(finding.severity >= severity_threshold for finding in self.findings)
 
     @property
     def critical_count(self) -> int:

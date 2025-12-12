@@ -3,7 +3,7 @@
 Discovers UI elements by role with stable selector generation.
 """
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from enum import Enum
 from typing import Any
 
@@ -513,7 +513,7 @@ class ElementTargetingStrategy:
             groups[key].append(elem)
 
         # Mark groups with 3+ similar elements as repeated
-        for key, group in groups.items():
+        for _key, group in groups.items():
             if len(group) >= 3:
                 for elem in group:
                     elem.is_repeated = True

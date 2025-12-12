@@ -14,7 +14,6 @@ import json
 import os
 import re
 import sys
-from typing import Optional
 
 # Intent patterns (compiled for performance)
 PATTERNS = {
@@ -89,7 +88,7 @@ def build_context(intents: list, collection: str) -> str:
     return "\n".join(suggestions) if suggestions else ""
 
 
-def check_sensitive(prompt: str) -> Optional[str]:
+def check_sensitive(prompt: str) -> str | None:
     """Check for sensitive content in prompt."""
     if SENSITIVE_PATTERNS.search(prompt):
         return "Warning: Prompt may contain sensitive data. Avoid sharing credentials."

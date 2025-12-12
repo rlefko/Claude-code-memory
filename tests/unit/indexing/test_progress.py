@@ -6,7 +6,6 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from claude_indexer.indexing.progress import PipelineProgress
-from claude_indexer.indexing.types import ProgressState
 
 
 class TestPipelineProgress:

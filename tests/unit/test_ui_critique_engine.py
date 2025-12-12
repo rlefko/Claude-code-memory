@@ -8,7 +8,6 @@ Tests the critique engine orchestration including:
 - Full critique generation
 """
 
-from datetime import datetime
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -28,7 +27,6 @@ from claude_indexer.ui.models import (
     Severity,
     SymbolKind,
     SymbolRef,
-    Visibility,
 )
 
 # ---------------------------------------------------------------------------
@@ -440,7 +438,7 @@ class TestCritiqueEngineInit:
         assert "tap_targets" in hints
 
         # Each should have at least one hint
-        for key, hint_list in hints.items():
+        for _key, hint_list in hints.items():
             assert len(hint_list) > 0
 
     def test_stores_config(self, critique_engine, mock_ui_config):

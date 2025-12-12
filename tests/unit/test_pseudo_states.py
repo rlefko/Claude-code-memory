@@ -32,7 +32,6 @@ class TestPseudoStateStyles:
     def test_default_state_required(self):
         """Test that default state is always present."""
         from claude_indexer.ui.collectors.pseudo_states import PseudoStateStyles
-        from claude_indexer.ui.collectors.style_capture import CapturedStyles
 
         styles = PseudoStateStyles()
         assert styles.default is not None

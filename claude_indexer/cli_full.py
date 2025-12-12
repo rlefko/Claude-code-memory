@@ -167,7 +167,7 @@ else:
         # Determine color usage
         from .cli.output import should_use_color
 
-        use_color = should_use_color(explicit_flag=not no_color if no_color else None)
+        should_use_color(explicit_flag=not no_color if no_color else None)
 
         try:
             # Validate project path first
@@ -1225,7 +1225,7 @@ else:
 
         # First show analysis
         if not quiet:
-            click.echo(f"\n=== Configuration Migration Analysis ===")
+            click.echo("\n=== Configuration Migration Analysis ===")
             click.echo(f"Project: {path}")
 
         analysis = migration.analyze()
@@ -2342,7 +2342,7 @@ else:
             claude-indexer session info
             claude-indexer session info -p /path/to/project --json
         """
-        from .session.manager import SessionManager, get_session_context
+        from .session.manager import SessionManager
 
         try:
             project_path = Path(project) if project else None
@@ -2569,7 +2569,7 @@ else:
             claude-indexer workspace init --strategy single
             claude-indexer workspace init -p /path/to/monorepo
         """
-        from .workspace import WorkspaceManager, WorkspaceType
+        from .workspace import WorkspaceManager
 
         try:
             ws_path = Path(path) if path else None
@@ -2642,7 +2642,7 @@ else:
         """
         import json as json_module
 
-        from .workspace import WorkspaceManager, WorkspaceType
+        from .workspace import WorkspaceManager
 
         try:
             ws_path = Path(path) if path else None
@@ -2780,7 +2780,6 @@ else:
             claude-indexer ignore add --global ".env"
             claude-indexer ignore add -p ./myproject "secrets/"
         """
-        import os
         from pathlib import Path
 
         if global_:
@@ -2797,7 +2796,7 @@ else:
             # Check if pattern already exists
             existing_patterns = []
             if ignore_file.exists():
-                with open(ignore_file, "r", encoding="utf-8") as f:
+                with open(ignore_file, encoding="utf-8") as f:
                     existing_patterns = [
                         line.strip()
                         for line in f
@@ -2813,7 +2812,7 @@ else:
             with open(ignore_file, "a", encoding="utf-8") as f:
                 if ignore_file.stat().st_size > 0:
                     # Check if file ends with newline
-                    with open(ignore_file, "r", encoding="utf-8") as rf:
+                    with open(ignore_file, encoding="utf-8") as rf:
                         content = rf.read()
                         if not content.endswith("\n"):
                             f.write("\n")
@@ -2880,7 +2879,7 @@ else:
                 global_file = Path.home() / ".claude-indexer" / ".claudeignore"
                 if global_file.exists():
                     click.echo(f"Global patterns ({global_file}):")
-                    with open(global_file, "r", encoding="utf-8") as f:
+                    with open(global_file, encoding="utf-8") as f:
                         for line in f:
                             line = line.strip()
                             if line and not line.startswith("#"):
@@ -2891,7 +2890,7 @@ else:
                 project_file = project_path / ".claudeignore"
                 if project_file.exists():
                     click.echo(f"Project patterns ({project_file}):")
-                    with open(project_file, "r", encoding="utf-8") as f:
+                    with open(project_file, encoding="utf-8") as f:
                         for line in f:
                             line = line.strip()
                             if line and not line.startswith("#"):
@@ -3802,7 +3801,7 @@ Code Patterns: {", ".join(summary.code_patterns)}
                 # CLI format
                 if not quiet:
                     click.echo()
-                    click.echo(f"📊 UI Quality Gate Results")
+                    click.echo("📊 UI Quality Gate Results")
                     click.echo(f"   Analysis time: {result.analysis_time_ms:.0f}ms")
                     click.echo(f"   Files analyzed: {result.files_analyzed}")
                     click.echo(f"   Cache hit rate: {result.cache_hit_rate:.1%}")
@@ -4353,12 +4352,11 @@ Code Patterns: {", ".join(summary.code_patterns)}
             ui_config = load_ui_config(project_path)
             collector = MetricsCollector(project_path, ui_config)
 
-            if not confirm:
-                if not click.confirm(
-                    "Are you sure you want to reset all metrics history?"
-                ):
-                    click.echo("Aborted")
-                    return
+            if not confirm and not click.confirm(
+                "Are you sure you want to reset all metrics history?"
+            ):
+                click.echo("Aborted")
+                return
 
             collector.reset()
             if not quiet:
@@ -4504,12 +4502,11 @@ Code Patterns: {", ".join(summary.code_patterns)}
         """
         from .performance import PerformanceMetricsCollector
 
-        if not confirm:
-            if not click.confirm(
-                "Are you sure you want to clear all performance metrics?"
-            ):
-                click.echo("Aborted")
-                return
+        if not confirm and not click.confirm(
+            "Are you sure you want to clear all performance metrics?"
+        ):
+            click.echo("Aborted")
+            return
 
         collector = PerformanceMetricsCollector()
         collector.clear()
@@ -4541,7 +4538,6 @@ Code Patterns: {", ".join(summary.code_patterns)}
             claude-indexer perf cache-stats
             claude-indexer perf cache-stats -c my-collection
         """
-        import json as json_module
 
         try:
             project_path = Path(project).resolve()

@@ -93,7 +93,7 @@ def find_missing_metadata():
         if identifier not in meta_entities:
             missing_metadata.append(details)
 
-    print(f"\n=== MISSING METADATA ANALYSIS ===")
+    print("\n=== MISSING METADATA ANALYSIS ===")
     print(f"Code implementations: {len(impl_entities)}")
     print(f"Code metadata (has_impl=true): {len(meta_entities)}")
     print(f"Missing metadata chunks: {len(missing_metadata)}")
@@ -117,11 +117,11 @@ def find_missing_metadata():
         else:
             by_extension["no_ext"] += 1
 
-    print(f"\n=== MISSING BY ENTITY TYPE ===")
+    print("\n=== MISSING BY ENTITY TYPE ===")
     for entity_type, count in sorted(by_type.items(), key=lambda x: x[1], reverse=True):
         print(f"  {entity_type}: {count}")
 
-    print(f"\n=== MISSING BY FILE EXTENSION ===")
+    print("\n=== MISSING BY FILE EXTENSION ===")
     for ext, count in sorted(by_extension.items(), key=lambda x: x[1], reverse=True):
         print(f"  .{ext}: {count}")
 
@@ -144,7 +144,7 @@ def find_missing_metadata():
         ):
             print(f"  .{ext}: {count}")
 
-        print(f"\n=== SAMPLE NON-MARKDOWN MISSING ===")
+        print("\n=== SAMPLE NON-MARKDOWN MISSING ===")
         for i, missing in enumerate(non_md_missing[:10]):
             print(f"  {i+1}. {missing['entity_type']}: {missing['entity_name']}")
             print(f"      File: {missing['file_path']}")
@@ -153,16 +153,16 @@ def find_missing_metadata():
     else:
         print("  ALL missing metadata chunks are from .md files only!")
 
-    print(f"\n=== TOP FILES WITH MISSING METADATA ===")
+    print("\n=== TOP FILES WITH MISSING METADATA ===")
     sorted_files = sorted(by_file.items(), key=lambda x: len(x[1]), reverse=True)
     for file_path, missing_list in sorted_files[:10]:
         print(f"  {file_path}: {len(missing_list)} missing")
-        for i, missing in enumerate(missing_list[:3]):  # Show first 3
+        for _i, missing in enumerate(missing_list[:3]):  # Show first 3
             print(f"    - {missing['entity_type']}: {missing['entity_name']}")
         if len(missing_list) > 3:
             print(f"    ... and {len(missing_list) - 3} more")
 
-    print(f"\n=== SAMPLE MISSING IMPLEMENTATIONS ===")
+    print("\n=== SAMPLE MISSING IMPLEMENTATIONS ===")
     for i, missing in enumerate(missing_metadata[:10]):
         print(f"  {i+1}. {missing['entity_type']}: {missing['entity_name']}")
         print(f"      File: {missing['file_path']}")

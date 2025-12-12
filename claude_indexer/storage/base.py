@@ -226,7 +226,7 @@ class ManagedVectorStore(VectorStore):
             )
             raise RuntimeError(
                 f"Collection creation failed: {type(self).__name__} missing sparse vector support"
-            )
+            ) from None
         return result.success
 
     def upsert_points(

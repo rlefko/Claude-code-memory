@@ -241,7 +241,7 @@ class HierarchyAnalyzer:
 
             # Calculate ratios between adjacent levels
             sorted_levels = sorted(
-                [l for l in level_averages.keys() if l.startswith("h")],
+                [level for level in level_averages if level.startswith("h")],
                 key=lambda x: int(x[1]) if x[1].isdigit() else 0,
             )
 

@@ -365,9 +365,7 @@ class PathTraversalRule(BaseRule):
                     surrounding = lines[start:end]
 
                     # Lower confidence if validation is present
-                    if self._has_path_validation(surrounding):
-                        confidence = base_confidence * 0.5
-                    elif is_test_file:
+                    if self._has_path_validation(surrounding) or is_test_file:
                         confidence = base_confidence * 0.5
                     else:
                         confidence = base_confidence

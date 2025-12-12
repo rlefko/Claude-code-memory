@@ -1,9 +1,6 @@
 """Unit tests for configuration validation."""
 
 import json
-from pathlib import Path
-
-import pytest
 
 from claude_indexer.config.validation import (
     ConfigError,

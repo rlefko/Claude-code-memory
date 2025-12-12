@@ -7,7 +7,7 @@ over time, indicating one may need updating to match the other.
 
 import re
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 from ..base import BaseRule, Evidence, RuleContext, Severity, Trigger
 

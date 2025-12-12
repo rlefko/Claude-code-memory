@@ -1,10 +1,6 @@
 """Unit tests for repair session management."""
 
-import json
-import tempfile
 import time
-from pathlib import Path
-from unittest.mock import patch
 
 import pytest
 

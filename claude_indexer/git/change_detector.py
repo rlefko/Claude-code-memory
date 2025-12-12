@@ -395,7 +395,7 @@ class GitChangeDetector:
 
         # Find deleted files
         previous_paths = {
-            k for k in previous_state.keys() if not k.startswith("_")
+            k for k in previous_state if not k.startswith("_")
         }  # Exclude metadata keys
         deleted = previous_paths - current_paths
         deleted_files.extend(deleted)

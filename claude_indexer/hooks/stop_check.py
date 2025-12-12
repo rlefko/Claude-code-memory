@@ -517,11 +517,7 @@ class StopCheckExecutor:
             return False
 
         # Check if in skip directory
-        for part in file_path.parts:
-            if part in skip_dirs:
-                return False
-
-        return True
+        return all(part not in skip_dirs for part in file_path.parts)
 
     def _should_block(self, findings: list[Finding], threshold: Severity) -> bool:
         """Determine if findings should block Claude.
@@ -596,7 +592,7 @@ def format_findings_for_claude(result: StopCheckResult) -> str:
 
     # Add summary
     lines.append("")
-    blocking_count = result.critical_count + result.high_count
+    result.critical_count + result.high_count
     lines.append(
         f"Found {len(result.findings)} issue(s): "
         f"{result.critical_count} critical, {result.high_count} high, "

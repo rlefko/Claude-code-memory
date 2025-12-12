@@ -17,8 +17,9 @@ Example usage:
 
 import functools
 import time
+from collections.abc import Callable
 from threading import Lock
-from typing import Any, Callable, Generic, TypeVar
+from typing import Any, Generic, TypeVar
 
 T = TypeVar("T")
 

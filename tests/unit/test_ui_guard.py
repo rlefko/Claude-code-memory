@@ -8,7 +8,6 @@ import pytest
 
 from claude_indexer.ui.cli.guard import UIGuard, is_ui_file, run_guard
 from claude_indexer.ui.config import UIQualityConfig
-from claude_indexer.ui.models import Severity
 
 
 class TestIsUIFile:
@@ -226,7 +225,7 @@ class TestRunGuard:
         output_stream = StringIO()
         error_stream = StringIO()
 
-        exit_code = run_guard(
+        run_guard(
             input_stream=input_stream,
             output_stream=output_stream,
             error_stream=error_stream,

@@ -18,10 +18,9 @@ if TYPE_CHECKING:
         StaticComponentFingerprint,
         StyleFingerprint,
     )
-    from ..rules.base import RuleContext
     from ..rules.engine import RuleEngine
 
-from ..models import Severity, UIAnalysisResult
+from ..models import Severity
 from .baseline import BaselineManager, CleanupMap
 from .cache import CacheManager
 from .cross_file_analyzer import CrossFileAnalyzer, CrossFileClusterResult
@@ -158,11 +157,11 @@ class CIAuditRunner:
         # Lazy-load config if not provided
         self._config = config
         self._cache_manager: CacheManager | None = None
-        self._source_collector: "SourceCollector | None" = None
+        self._source_collector: SourceCollector | None = None
         self._cross_file_analyzer: CrossFileAnalyzer | None = None
         self._baseline_manager: BaselineManager | None = None
-        self._rule_engine: "RuleEngine | None" = None
-        self._diff_collector: "GitDiffCollector | None" = None
+        self._rule_engine: RuleEngine | None = None
+        self._diff_collector: GitDiffCollector | None = None
 
     @property
     def config(self) -> "UIQualityConfig":
@@ -407,8 +406,8 @@ class CIAuditRunner:
         Returns:
             Tuple of (all_styles, all_components).
         """
-        all_styles: list["StyleFingerprint"] = []
-        all_components: list["StaticComponentFingerprint"] = []
+        all_styles: list[StyleFingerprint] = []
+        all_components: list[StaticComponentFingerprint] = []
 
         if self.audit_config.enable_caching:
             self.cache_manager.initialize()
@@ -537,8 +536,8 @@ class CIAuditRunner:
         Returns:
             Tuple of (styles, components).
         """
-        all_styles: list["StyleFingerprint"] = []
-        all_components: list["StaticComponentFingerprint"] = []
+        all_styles: list[StyleFingerprint] = []
+        all_components: list[StaticComponentFingerprint] = []
 
         for file_path in files:
             styles, components = self._extract_from_file(file_path)

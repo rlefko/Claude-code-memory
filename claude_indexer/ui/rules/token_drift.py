@@ -5,13 +5,8 @@ be using design system tokens instead.
 """
 
 from ..models import (
-    Evidence,
-    EvidenceType,
     Finding,
     Severity,
-    SymbolKind,
-    SymbolRef,
-    Visibility,
 )
 from ..normalizers.token_resolver import ResolutionStatus, TokenCategory
 from .base import BaseRule, RuleContext

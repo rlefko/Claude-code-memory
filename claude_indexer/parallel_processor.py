@@ -8,15 +8,14 @@ indexing of large projects while managing memory efficiently.
 import gc
 import logging
 import multiprocessing as mp
-import os
 import traceback
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 import psutil
 
-from .analysis.entities import Entity, EntityChunk, EntityType, Relation, RelationType
+from .analysis.entities import Entity, EntityChunk, EntityType, Relation
 from .analysis.parser import ParserRegistry
 from .categorization import FileCategorizationSystem, ProcessingTier
 
@@ -30,7 +29,7 @@ def init_worker():
     gc.collect()
 
 
-def parse_file_worker(args: Tuple[Path, str, Dict[str, Any]]) -> Dict[str, Any]:
+def parse_file_worker(args: tuple[Path, str, dict[str, Any]]) -> dict[str, Any]:
     """
     Worker function for parsing a single file.
     Runs in a separate process for true parallelism.
@@ -52,7 +51,7 @@ def parse_file_worker(args: Tuple[Path, str, Dict[str, Any]]) -> Dict[str, Any]:
 
         # Get processing tier and config
         tier = categorizer.categorize_file(file_path)
-        tier_config = categorizer.get_processing_config(file_path)
+        categorizer.get_processing_config(file_path)
 
         # Skip if file is too large
         try:
@@ -65,7 +64,7 @@ def parse_file_worker(args: Tuple[Path, str, Dict[str, Any]]) -> Dict[str, Any]:
                     "reason": f"File too large: {file_size} bytes",
                     "tier": tier.value,
                 }
-        except (OSError, IOError):
+        except OSError:
             pass
 
         # Parse based on tier
@@ -118,7 +117,7 @@ def parse_file_worker(args: Tuple[Path, str, Dict[str, Any]]) -> Dict[str, Any]:
 
 def parse_light_tier(
     file_path: Path, parser_registry: ParserRegistry, collection_name: str
-) -> Tuple[List[Entity], List[Relation], List[EntityChunk]]:
+) -> tuple[list[Entity], list[Relation], list[EntityChunk]]:
     """
     Simplified parsing for light tier files (generated code, type definitions).
 
@@ -133,7 +132,7 @@ def parse_light_tier(
         entity_type=EntityType.FILE,
         observations=[
             f"File: {file_path.name}",
-            f"Tier: light (generated/type definition)",
+            "Tier: light (generated/type definition)",
             f"Type: {file_path.suffix}",
         ],
         file_path=file_path,
@@ -220,7 +219,7 @@ def parse_light_tier(
     return entities, [], chunks  # No relations for light tier
 
 
-def entity_to_dict(entity: Entity) -> Dict[str, Any]:
+def entity_to_dict(entity: Entity) -> dict[str, Any]:
     """Convert Entity to serializable dictionary for cross-process transfer."""
     return {
         "name": entity.name,
@@ -236,7 +235,7 @@ def entity_to_dict(entity: Entity) -> Dict[str, Any]:
     }
 
 
-def relation_to_dict(relation: Relation) -> Dict[str, Any]:
+def relation_to_dict(relation: Relation) -> dict[str, Any]:
     """Convert Relation to serializable dictionary for cross-process transfer."""
     return {
         "from_entity": relation.from_entity,
@@ -248,7 +247,7 @@ def relation_to_dict(relation: Relation) -> Dict[str, Any]:
     }
 
 
-def chunk_to_dict(chunk: EntityChunk) -> Dict[str, Any]:
+def chunk_to_dict(chunk: EntityChunk) -> dict[str, Any]:
     """Convert EntityChunk to serializable dictionary for cross-process transfer."""
     return {
         "id": chunk.id,
@@ -266,9 +265,9 @@ class ParallelFileProcessor:
 
     def __init__(
         self,
-        max_workers: Optional[int] = None,
+        max_workers: int | None = None,
         memory_limit_mb: int = 2000,
-        logger: Optional[logging.Logger] = None,
+        logger: logging.Logger | None = None,
     ):
         """
         Initialize the parallel processor.
@@ -300,10 +299,10 @@ class ParallelFileProcessor:
 
     def process_files_parallel(
         self,
-        file_paths: List[Path],
+        file_paths: list[Path],
         collection_name: str,
-        processing_config: Dict[str, Any],
-    ) -> List[Dict[str, Any]]:
+        processing_config: dict[str, Any],
+    ) -> list[dict[str, Any]]:
         """
         Process multiple files in parallel.
 
@@ -392,7 +391,7 @@ class ParallelFileProcessor:
 
         return results
 
-    def get_tier_stats(self, results: List[Dict[str, Any]]) -> Dict[str, int]:
+    def get_tier_stats(self, results: list[dict[str, Any]]) -> dict[str, int]:
         """
         Get statistics about processed file tiers.
 

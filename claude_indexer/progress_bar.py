@@ -14,7 +14,6 @@ import shutil
 import sys
 import time
 from dataclasses import dataclass
-from typing import Optional
 
 
 def _should_use_color() -> bool:
@@ -26,9 +25,7 @@ def _should_use_color() -> bool:
     if "FORCE_COLOR" in os.environ:
         return True
     # Check if stdout is a TTY
-    if hasattr(sys.stdout, "isatty") and not sys.stdout.isatty():
-        return False
-    return True
+    return not (hasattr(sys.stdout, "isatty") and not sys.stdout.isatty())
 
 
 @dataclass
@@ -114,11 +111,11 @@ class ModernProgressBar:
 
     def update(
         self,
-        current: Optional[int] = None,
-        batch_num: Optional[int] = None,
-        total_batches: Optional[int] = None,
-        memory_mb: Optional[int] = None,
-        tier_info: Optional[str] = None,
+        current: int | None = None,
+        batch_num: int | None = None,
+        total_batches: int | None = None,
+        memory_mb: int | None = None,
+        tier_info: str | None = None,
     ):
         """
         Update the progress bar.

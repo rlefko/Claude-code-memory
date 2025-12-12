@@ -8,7 +8,6 @@ ensuring that even broken files are indexed and searchable.
 import logging
 import re
 from pathlib import Path
-from typing import List, Tuple
 
 from .analysis.entities import Entity, EntityType, Relation, RelationType
 from .analysis.parser import ParserResult
@@ -89,7 +88,7 @@ class FallbackParser:
                 entity_type=EntityType.FILE,
                 observations=[
                     f"⚠️ File has syntax errors: {error_message or 'Unknown error'}",
-                    f"Fallback parsing applied - partial content extracted",
+                    "Fallback parsing applied - partial content extracted",
                     f"File size: {file_path.stat().st_size} bytes",
                     f"Lines: {len(lines)}",
                 ],
@@ -106,7 +105,7 @@ class FallbackParser:
                         name=func_name,
                         entity_type=EntityType.FUNCTION,
                         observations=[
-                            f"Function extracted via fallback parser",
+                            "Function extracted via fallback parser",
                             f"Found at line {line_num}",
                             "⚠️ Full signature unavailable due to syntax errors",
                         ],
@@ -123,7 +122,7 @@ class FallbackParser:
                         name=class_name,
                         entity_type=EntityType.CLASS,
                         observations=[
-                            f"Class/Interface extracted via fallback parser",
+                            "Class/Interface extracted via fallback parser",
                             f"Found at line {line_num}",
                             "⚠️ Members unavailable due to syntax errors",
                         ],
@@ -140,7 +139,7 @@ class FallbackParser:
                         name=var_name,
                         entity_type=EntityType.VARIABLE,
                         observations=[
-                            f"Variable/Constant extracted via fallback parser",
+                            "Variable/Constant extracted via fallback parser",
                             f"Found at line {line_num}",
                         ],
                         file_path=file_path,
@@ -185,7 +184,7 @@ class FallbackParser:
                     name=f"{file_path.name}_content",
                     entity_type=EntityType.DOCUMENTATION,
                     observations=[
-                        f"File content preview (first 1000 chars)",
+                        "File content preview (first 1000 chars)",
                         content_preview,
                         "⚠️ Complete parsing unavailable due to syntax errors",
                     ],
@@ -235,7 +234,7 @@ class FallbackParser:
             )
 
     @staticmethod
-    def _extract_patterns(content: str, patterns: List[str]) -> List[Tuple[str, int]]:
+    def _extract_patterns(content: str, patterns: list[str]) -> list[tuple[str, int]]:
         """
         Extract matches for given regex patterns with line numbers.
 
@@ -277,7 +276,7 @@ class FallbackParser:
         if not (name[0].isalpha() or name[0] == "_"):
             return False
         # Avoid operators and special chars
-        if name in [
+        return name not in [
             "if",
             "for",
             "while",
@@ -286,6 +285,4 @@ class FallbackParser:
             "false",
             "null",
             "undefined",
-        ]:
-            return False
-        return True
+        ]

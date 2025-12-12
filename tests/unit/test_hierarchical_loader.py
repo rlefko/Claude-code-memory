@@ -1,10 +1,7 @@
 """Unit tests for the HierarchicalConfigLoader."""
 
 import json
-import os
 from pathlib import Path
-
-import pytest
 
 from claude_indexer.config.hierarchical_loader import (
     ConfigPaths,
@@ -19,9 +16,9 @@ class TestConfigPaths:
 
     def test_global_paths(self):
         """Test global configuration paths."""
-        assert ConfigPaths.GLOBAL_DIR == Path.home() / ".claude-indexer"
+        assert Path.home() / ".claude-indexer" == ConfigPaths.GLOBAL_DIR
         assert (
-            ConfigPaths.GLOBAL_CONFIG == Path.home() / ".claude-indexer" / "config.json"
+            Path.home() / ".claude-indexer" / "config.json" == ConfigPaths.GLOBAL_CONFIG
         )
 
     def test_project_paths(self):

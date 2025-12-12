@@ -10,8 +10,6 @@ import pytest
 
 from claude_indexer.ui.collectors.git_diff import DiffResult, FileChange
 from claude_indexer.ui.models import (
-    Evidence,
-    EvidenceType,
     Finding,
     Severity,
     SymbolKind,

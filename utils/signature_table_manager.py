@@ -35,7 +35,7 @@ class SignatureTableManager:
             cache_base: Base directory for collection-specific caches.
                         Defaults to .index_cache/collections in current directory.
         """
-        self._tables: dict[str, "SignatureHashTable"] = {}
+        self._tables: dict[str, SignatureHashTable] = {}
         self._lock = threading.Lock()
         self._cache_base = cache_base or Path.cwd() / ".index_cache" / "collections"
 

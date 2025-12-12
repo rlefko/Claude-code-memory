@@ -5,10 +5,9 @@ They require a git repository and can be run with:
     pytest tests/integration/test_incremental_indexing.py -v
 """
 
-import os
 import subprocess
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 

@@ -130,7 +130,7 @@ class UIGuard:
                 structure_hash=normalized.structure_hash,
                 style_refs=component.style_refs,
                 prop_shape_sketch=(
-                    {k: "any" for k in normalized.prop_names}
+                    dict.fromkeys(normalized.prop_names, "any")
                     if normalized.prop_names
                     else None
                 ),

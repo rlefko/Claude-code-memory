@@ -32,7 +32,7 @@ def merge_mcp_config(settings_file: Path, new_config: dict) -> None:
     # Load existing configuration if file exists
     if settings_file.exists():
         try:
-            with open(settings_file, "r") as f:
+            with open(settings_file) as f:
                 existing_config = json.load(f)
         except json.JSONDecodeError:
             print(

@@ -5,7 +5,7 @@ evaluation and manages rule registration.
 """
 
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from ..models import Finding, Severity, UIAnalysisResult

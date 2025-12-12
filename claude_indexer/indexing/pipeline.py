@@ -251,7 +251,7 @@ class IndexingPipeline:
                 callback=progress_callback,
             )
 
-            checkpoint_state = self.checkpoint.create(
+            self.checkpoint.create(
                 collection_name=collection_name,
                 project_path=self.project_path,
                 all_files=changed_files,
@@ -260,8 +260,6 @@ class IndexingPipeline:
 
             # Phase 4: Process batches
             all_entities: list[Entity] = []
-            all_relations: list[Relation] = []
-            all_chunks: list[EntityChunk] = []
             total_files_processed = 0
             total_files_failed = 0
 

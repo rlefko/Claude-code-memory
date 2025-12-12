@@ -6,10 +6,10 @@ within UI element roles (buttons, inputs, cards, etc.).
 
 from abc import abstractmethod
 from collections import Counter, defaultdict
-from statistics import mean, median, stdev
+from statistics import median
 from typing import Any
 
-from ..models import Finding, Severity, SymbolRef
+from ..models import Finding, Severity
 from .base import BaseRule, RuleContext
 
 

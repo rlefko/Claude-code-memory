@@ -8,7 +8,6 @@ to optimize indexing performance without losing accuracy.
 import re
 from enum import Enum
 from pathlib import Path
-from typing import Literal, Optional
 
 
 class ProcessingTier(Enum):
@@ -113,7 +112,7 @@ class FileCategorizationSystem:
             file_size = file_path.stat().st_size
             if file_size > self.HUGE_FILE_THRESHOLD:
                 return ProcessingTier.LIGHT
-        except (OSError, IOError):
+        except OSError:
             # If we can't stat the file, use standard processing
             pass
 
@@ -127,7 +126,7 @@ class FileCategorizationSystem:
             file_size = file_path.stat().st_size
             if file_size < self.LARGE_FILE_THRESHOLD and self._is_core_file(path_str):
                 return ProcessingTier.DEEP
-        except (OSError, IOError):
+        except OSError:
             # If we can't stat, check patterns anyway
             if self._is_core_file(path_str):
                 return ProcessingTier.DEEP
@@ -137,17 +136,11 @@ class FileCategorizationSystem:
 
     def _is_generated_file(self, path_str: str) -> bool:
         """Check if file matches generated file patterns."""
-        for pattern in self.generated_patterns:
-            if pattern.search(path_str):
-                return True
-        return False
+        return any(pattern.search(path_str) for pattern in self.generated_patterns)
 
     def _is_core_file(self, path_str: str) -> bool:
         """Check if file matches core file patterns."""
-        for pattern in self.core_patterns:
-            if pattern.search(path_str):
-                return True
-        return False
+        return any(pattern.search(path_str) for pattern in self.core_patterns)
 
     def get_tier_stats(self, file_paths: list[Path]) -> dict[str, int]:
         """

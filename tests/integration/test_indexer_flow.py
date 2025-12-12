@@ -52,10 +52,7 @@ def no_errors_in_logs(stderr_output: str, stdout_output: str) -> bool:
 
     # Check stdout for error indicators
     error_indicators = ["❌", "error:", "exception:", "traceback"]
-    if any(indicator in stdout_output.lower() for indicator in error_indicators):
-        return False
-
-    return True
+    return not any(indicator in stdout_output.lower() for indicator in error_indicators)
 
 
 def validate_state_file_structure(state_file_path: str, expected_files: set) -> dict:
@@ -237,7 +234,7 @@ class TestACustomFlow:
         )
 
         # Initial index
-        result1 = indexer.index_project("test_incremental")
+        indexer.index_project("test_incremental")
         initial_count = qdrant_store.count("test_incremental")
 
         # Modify a file
@@ -748,15 +745,13 @@ NEW_CONSTANT = "test_value"
         ), f"Should have no errors in incremental indexing. Errors: {incremental_errors}"
 
         # ENHANCED FILENAME VALIDATION - Parse CLI verbose output and validate state
-        processed_files = extract_processed_files_from_cli_output(incremental_output)
+        extract_processed_files_from_cli_output(incremental_output)
 
         # ENHANCED STATE FILE VALIDATION
         # Filter out metadata keys (those starting with _) from expected files
-        initial_files = {k for k in initial_state.keys() if not k.startswith("_")}
+        initial_files = {k for k in initial_state if not k.startswith("_")}
         expected_files_in_final_state = initial_files | {"new_module.py"}
-        final_state_validated = validate_state_file_structure(
-            str(state_file), expected_files_in_final_state
-        )
+        validate_state_file_structure(str(state_file), expected_files_in_final_state)
 
         # Verify vector count increased (new entities added)
         assert (
@@ -875,7 +870,7 @@ DELETABLE_CONSTANT = "to_be_removed"
             initial_state = json.load(f)
         # Count only actual files, not metadata keys
         initial_state_file_count = sum(
-            1 for k in initial_state.keys() if not k.startswith("_")
+            1 for k in initial_state if not k.startswith("_")
         )
         assert (
             "deletable.py" in initial_state
@@ -928,15 +923,13 @@ DELETABLE_CONSTANT = "to_be_removed"
         ), f"Should have no errors in deletion processing. Errors: {deletion_errors}"
 
         # ENHANCED DELETION VALIDATION - Parse CLI verbose output for deletion information
-        deletion_info = extract_deletion_info_from_cli_output(deletion_output)
+        extract_deletion_info_from_cli_output(deletion_output)
 
         # ENHANCED STATE FILE VALIDATION FOR DELETION
         # Filter out metadata keys (those starting with _) from expected files
-        initial_files = {k for k in initial_state.keys() if not k.startswith("_")}
+        initial_files = {k for k in initial_state if not k.startswith("_")}
         expected_files_after_deletion = initial_files - {"deletable.py"}
-        final_state_validated = validate_state_file_structure(
-            str(state_file), expected_files_after_deletion
-        )
+        validate_state_file_structure(str(state_file), expected_files_after_deletion)
 
         # Verify vector count decreased (entities removed)
         assert (
@@ -947,9 +940,7 @@ DELETABLE_CONSTANT = "to_be_removed"
         with open(state_file) as f:
             final_state = json.load(f)
         # Count only actual files, not metadata keys
-        final_state_file_count = sum(
-            1 for k in final_state.keys() if not k.startswith("_")
-        )
+        final_state_file_count = sum(1 for k in final_state if not k.startswith("_"))
 
         assert (
             final_state_file_count == initial_state_file_count - 1
@@ -1130,16 +1121,14 @@ class NewClass_{i}:
         ), f"Should have no errors in incremental indexing. Errors: {incremental_errors}"
 
         # ENHANCED FILENAME VALIDATION - Parse CLI verbose output and validate state
-        processed_files = extract_processed_files_from_cli_output(incremental_output)
+        extract_processed_files_from_cli_output(incremental_output)
 
         # ENHANCED STATE FILE VALIDATION
         new_file_names = {f"new_module_{i}.py" for i in range(1, 4)}
         # Filter out metadata keys (those starting with _) from expected files
-        initial_files = {k for k in initial_state.keys() if not k.startswith("_")}
+        initial_files = {k for k in initial_state if not k.startswith("_")}
         expected_files_in_final_state = initial_files | new_file_names
-        final_state_validated = validate_state_file_structure(
-            str(state_file), expected_files_in_final_state
-        )
+        validate_state_file_structure(str(state_file), expected_files_in_final_state)
 
         # Verify vector count increased significantly (new entities added)
         assert (
@@ -1334,16 +1323,14 @@ class DeletableClass_{i}:
         ), f"Should have no errors in deletion processing. Errors: {deletion_errors}"
 
         # ENHANCED DELETION VALIDATION - Parse CLI verbose output for deletion information
-        deletion_info = extract_deletion_info_from_cli_output(deletion_output)
+        extract_deletion_info_from_cli_output(deletion_output)
 
         # ENHANCED STATE FILE VALIDATION FOR THREE-FILE DELETION
         deleted_file_names = {f"deletable_{i}.py" for i in range(1, 4)}
         # Filter out metadata keys (those starting with _) from expected files
-        initial_files = {k for k in initial_state.keys() if not k.startswith("_")}
+        initial_files = {k for k in initial_state if not k.startswith("_")}
         expected_files_after_deletion = initial_files - deleted_file_names
-        final_state_validated = validate_state_file_structure(
-            str(state_file), expected_files_after_deletion
-        )
+        validate_state_file_structure(str(state_file), expected_files_after_deletion)
 
         # Verify vector count decreased significantly (entities removed)
         assert (

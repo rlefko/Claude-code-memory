@@ -4,8 +4,8 @@ Converts critique reports into actionable implementation plans
 with tasks grouped by scope and prioritized by impact/effort.
 """
 
-from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any
+from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from ..ci.audit_runner import CIAuditResult
@@ -270,7 +270,7 @@ class PlanGenerator:
         elif subcategory == "role_variants":
             role = metrics.get("role", "element")
             criteria.append(f"All {role}s use shared component with variant prop")
-            criteria.append(f"Maximum 3 intentional variants documented")
+            criteria.append("Maximum 3 intentional variants documented")
             criteria.append("Visual regression tests pass")
 
         elif subcategory == "outlier":
@@ -391,7 +391,7 @@ class PlanGenerator:
 
         # Merge groups with >1 task
         result: list[Task] = []
-        for key, group_tasks in grouped.items():
+        for _key, group_tasks in grouped.items():
             if len(group_tasks) == 1:
                 result.append(group_tasks[0])
             else:
@@ -506,11 +506,10 @@ class PlanGenerator:
             f"\nEstimated total effort: {plan.estimated_total_effort}."
         )
 
-        if critique_report:
-            if critique_report.fail_count > 0:
-                summary_parts.append(
-                    f"\nAddresses {critique_report.fail_count} critical issues."
-                )
+        if critique_report and critique_report.fail_count > 0:
+            summary_parts.append(
+                f"\nAddresses {critique_report.fail_count} critical issues."
+            )
 
         return " ".join(summary_parts)
 

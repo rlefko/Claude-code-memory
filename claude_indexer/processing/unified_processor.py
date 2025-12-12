@@ -89,7 +89,7 @@ class UnifiedContentProcessor:
 
         # DEBUG: Track implementation_entity_names population
         if self.logger:
-            self.logger.debug(f"🔍 UNIFIED PROCESSOR DEBUG:")
+            self.logger.debug("🔍 UNIFIED PROCESSOR DEBUG:")
             self.logger.debug(
                 f"🔍   implementation_chunks count: {len(implementation_chunks) if implementation_chunks else 0}"
             )

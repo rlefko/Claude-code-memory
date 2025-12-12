@@ -20,6 +20,25 @@ except ImportError:
     cli = None
 
 
+def create_file_mock():
+    """Create a properly configured file mock for logging compatibility.
+
+    This mock includes all file operations that RotatingFileHandler and other
+    logging handlers may call. Without proper return types, logging handlers
+    will fail with TypeError when they try to use Mock objects in arithmetic.
+    """
+    mock_file = Mock()
+    mock_file.__enter__ = Mock(return_value=mock_file)
+    mock_file.__exit__ = Mock(return_value=None)
+    mock_file.tell = Mock(return_value=0)  # Must return int, not Mock
+    mock_file.seek = Mock(return_value=None)
+    mock_file.write = Mock(return_value=0)
+    mock_file.read = Mock(return_value="")
+    mock_file.fileno = Mock(return_value=-1)
+    mock_file.close = Mock(return_value=None)
+    return mock_file
+
+
 @pytest.mark.e2e
 class TestCLIEndToEnd:
     """Test complete CLI workflows."""
@@ -111,9 +130,8 @@ class TestCLIEndToEnd:
                 patch("claude_indexer.cli_full.create_store_from_config") as mock_store,
             ):
                 # Mock file operations to prevent path errors
-                mock_file = Mock()
-                mock_file.__enter__ = Mock(return_value=mock_file)
-                mock_file.__exit__ = Mock(return_value=None)
+                # Use create_file_mock() to properly implement tell() etc for logging
+                mock_file = create_file_mock()
                 with (
                     patch("builtins.open", Mock(return_value=mock_file)),
                     patch("json.dump", Mock()),
@@ -479,12 +497,22 @@ def module_{module_i}_function_{func_i}():
                 or entity.payload.get("name", "")
                 or entity.payload.get("content", "")
             )
-            assert "module_0" in entity.payload.get("file_path", "")
+            # file_path may be at top level or nested in metadata
+            file_path = entity.payload.get("file_path", "")
+            if not file_path and "metadata" in entity.payload:
+                file_path = entity.payload.get("metadata", {}).get("file_path", "")
+            assert (
+                "module_0" in file_path
+            ), f"Expected 'module_0' in file_path, got: {file_path}"
             # Entity type should be either "class" or "entity" depending on storage implementation
-            entity_type = entity.payload.get(
-                "entity_type",
-                entity.payload.get("type", entity.payload.get("entityType", "")),
-            )
+            # It may be at top level or nested in metadata
+            entity_type = entity.payload.get("entity_type", "")
+            if not entity_type and "metadata" in entity.payload:
+                entity_type = entity.payload.get("metadata", {}).get("entity_type", "")
+            if not entity_type:
+                entity_type = entity.payload.get(
+                    "type", entity.payload.get("entityType", "")
+                )
             assert entity_type in [
                 "class",
                 "entity",
@@ -573,9 +601,8 @@ class TestCLIIntegrationScenarios:
             with patch("claude_indexer.cli_full.create_embedder_from_config"):
                 with patch("claude_indexer.cli_full.create_store_from_config"):
                     # Mock file operations to prevent path errors
-                    mock_file = Mock()
-                    mock_file.__enter__ = Mock(return_value=mock_file)
-                    mock_file.__exit__ = Mock(return_value=None)
+                    # Use create_file_mock() to properly implement tell() etc for logging
+                    mock_file = create_file_mock()
                     with patch("builtins.open", Mock(return_value=mock_file)):
                         with patch("json.dump", Mock()):
                             result = runner.invoke(
@@ -662,9 +689,8 @@ class TestCLIIntegrationScenarios:
             with patch("claude_indexer.cli_full.create_embedder_from_config"):
                 with patch("claude_indexer.cli_full.create_store_from_config"):
                     # Mock file operations to prevent path errors
-                    mock_file = Mock()
-                    mock_file.__enter__ = Mock(return_value=mock_file)
-                    mock_file.__exit__ = Mock(return_value=None)
+                    # Use create_file_mock() to properly implement tell() etc for logging
+                    mock_file = create_file_mock()
                     with patch("builtins.open", Mock(return_value=mock_file)):
                         with patch("json.dump", Mock()):
                             # Test verbose mode

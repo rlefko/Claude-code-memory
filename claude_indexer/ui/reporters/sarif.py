@@ -7,7 +7,7 @@ SARIF Specification: https://docs.oasis-open.org/sarif/sarif/v2.1.0/
 """
 
 import json
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -273,7 +273,7 @@ class SARIFExporter:
             SARIF document dictionary.
         """
         # Build rule definitions from unique rule IDs
-        rule_ids = list(set(f.rule_id for f in findings))
+        rule_ids = list({f.rule_id for f in findings})
         rules = self._build_rule_definitions(rule_ids)
 
         # Create rule index lookup

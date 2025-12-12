@@ -3,12 +3,9 @@
 import json
 import time
 from pathlib import Path
-from unittest.mock import MagicMock, patch
 
 import pytest
 
-from claude_indexer.session.context import SessionContext
-from claude_indexer.session.lock import LockConflictError
 from claude_indexer.session.manager import (
     SessionManager,
     clear_session,

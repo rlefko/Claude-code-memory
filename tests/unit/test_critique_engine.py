@@ -18,7 +18,7 @@ from claude_indexer.ui.config import (
 )
 from claude_indexer.ui.critique.affordance import AffordanceAnalyzer
 from claude_indexer.ui.critique.consistency import ConsistencyAnalyzer
-from claude_indexer.ui.critique.engine import CritiqueEngine, CritiqueItem
+from claude_indexer.ui.critique.engine import CritiqueEngine
 from claude_indexer.ui.critique.hierarchy import HierarchyAnalyzer
 from claude_indexer.ui.models import (
     LayoutBox,
@@ -496,7 +496,7 @@ class TestCritiqueEngine:
         )
 
         # At least some critiques should have remediation hints
-        has_hints = any(len(c.remediation_hints) > 0 for c in report.critiques)
+        any(len(c.remediation_hints) > 0 for c in report.critiques)
         # This assertion depends on the specific critiques generated
         # Just verify the structure is correct
         for critique in report.critiques:

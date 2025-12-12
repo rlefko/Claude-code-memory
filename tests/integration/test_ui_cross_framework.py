@@ -6,7 +6,6 @@ duplicates and inconsistencies across React, Vue, and Svelte components.
 """
 
 from pathlib import Path
-from typing import Any, Dict, List
 
 import pytest
 
@@ -16,7 +15,7 @@ try:
     from claude_indexer.ui.collectors.adapters.svelte import SvelteAdapter
     from claude_indexer.ui.collectors.adapters.vue import VueAdapter
     from claude_indexer.ui.collectors.source import SourceCollector
-    from claude_indexer.ui.models import (
+    from claude_indexer.ui.models import (  # noqa: F401
         Finding,
         Severity,
         StaticComponentFingerprint,

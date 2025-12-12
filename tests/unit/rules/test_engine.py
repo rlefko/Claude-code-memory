@@ -2,11 +2,8 @@
 
 from pathlib import Path
 
-import pytest
-
 from claude_indexer.rules.base import (
     BaseRule,
-    Evidence,
     Finding,
     RuleContext,
     Severity,

@@ -18,6 +18,8 @@ try:
 except ImportError:
     WATCHER_AVAILABLE = False
 
+import contextlib
+
 from claude_indexer.config import IndexerConfig
 
 
@@ -103,10 +105,8 @@ class TestWatcherFlow:
             # Stop watcher
             await watcher.stop()
             watch_task.cancel()
-            try:
+            with contextlib.suppress(asyncio.CancelledError):
                 await watch_task
-            except asyncio.CancelledError:
-                pass
 
     async def test_multiple_file_changes(self, temp_repo, dummy_embedder, qdrant_store):
         """Test watching multiple file changes."""
@@ -172,10 +172,8 @@ class TestWatcherFlow:
         finally:
             await watcher.stop()
             watch_task.cancel()
-            try:
+            with contextlib.suppress(asyncio.CancelledError):
                 await watch_task
-            except asyncio.CancelledError:
-                pass
 
     async def test_new_file_creation(self, temp_repo, dummy_embedder, qdrant_store):
         """Test watching for new file creation."""
@@ -238,10 +236,8 @@ class NewClass:
         finally:
             await watcher.stop()
             watch_task.cancel()
-            try:
+            with contextlib.suppress(asyncio.CancelledError):
                 await watch_task
-            except asyncio.CancelledError:
-                pass
 
     async def test_file_deletion_handling(
         self, temp_repo, dummy_embedder, qdrant_store
@@ -317,10 +313,8 @@ def temp_function():
         finally:
             await watcher.stop()
             watch_task.cancel()
-            try:
+            with contextlib.suppress(asyncio.CancelledError):
                 await watch_task
-            except asyncio.CancelledError:
-                pass
 
     async def test_watcher_error_handling(
         self, temp_repo, dummy_embedder, qdrant_store
@@ -365,10 +359,8 @@ def temp_function():
         finally:
             await watcher.stop()
             watch_task.cancel()
-            try:
+            with contextlib.suppress(asyncio.CancelledError):
                 await watch_task
-            except asyncio.CancelledError:
-                pass
 
     async def test_debouncing_behavior(self, temp_repo, dummy_embedder, qdrant_store):
         """Test that rapid file changes are properly debounced."""
@@ -419,10 +411,8 @@ def temp_function():
         finally:
             await watcher.stop()
             watch_task.cancel()
-            try:
+            with contextlib.suppress(asyncio.CancelledError):
                 await watch_task
-            except asyncio.CancelledError:
-                pass
 
 
 @pytest.mark.integration
@@ -488,7 +478,5 @@ class TestWatcherConfiguration:
         finally:
             await watcher.stop()
             watch_task.cancel()
-            try:
+            with contextlib.suppress(asyncio.CancelledError):
                 await watch_task
-            except asyncio.CancelledError:
-                pass

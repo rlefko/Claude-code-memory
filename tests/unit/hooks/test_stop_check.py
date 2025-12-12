@@ -480,7 +480,6 @@ class TestRunStopCheck:
     @pytest.fixture
     def temp_git_repo(self):
         """Create a temporary git repository for testing."""
-        import shutil
 
         with tempfile.TemporaryDirectory() as tmpdir:
             tmppath = Path(tmpdir)
@@ -537,7 +536,7 @@ class TestRunStopCheck:
         new_file = temp_git_repo / "test.py"
         new_file.write_text("x = 1\n")
 
-        exit_code = run_stop_check(
+        run_stop_check(
             project=str(temp_git_repo),
             output_json=True,
             timeout_ms=5000,

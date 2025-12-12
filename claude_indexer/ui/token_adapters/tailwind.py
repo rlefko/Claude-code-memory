@@ -3,7 +3,6 @@
 Extracts design tokens from tailwind.config.js/ts files.
 """
 
-import json
 import re
 from pathlib import Path
 

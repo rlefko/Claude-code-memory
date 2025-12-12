@@ -1,15 +1,12 @@
 """Tests for DoctorManager."""
 
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 
 from claude_indexer.doctor.manager import DoctorManager
 from claude_indexer.doctor.types import (
-    CheckCategory,
-    CheckResult,
-    CheckStatus,
     DoctorOptions,
 )
 

@@ -166,10 +166,7 @@ class MagicNumbersRule(BaseRule):
                 try:
                     number_str = match.group(1)
                     # Try to parse as int or float
-                    if "." in number_str:
-                        number = float(number_str)
-                    else:
-                        number = int(number_str)
+                    number = float(number_str) if "." in number_str else int(number_str)
 
                     # Skip allowed numbers
                     if number in allowed_numbers:

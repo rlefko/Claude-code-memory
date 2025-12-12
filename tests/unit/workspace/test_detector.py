@@ -1,9 +1,6 @@
 """Unit tests for workspace detector module."""
 
 import json
-from pathlib import Path
-
-import pytest
 
 from claude_indexer.workspace.detector import WorkspaceDetector
 from claude_indexer.workspace.types import (

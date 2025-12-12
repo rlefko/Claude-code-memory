@@ -59,10 +59,7 @@ class FileChange:
         Returns:
             True if the line is within any added range.
         """
-        for start, end in self.added_lines:
-            if start <= line_number <= end:
-                return True
-        return False
+        return any(start <= line_number <= end for start, end in self.added_lines)
 
     def is_ui_file(self, extensions: list[str] | None = None) -> bool:
         """Check if this is a UI-related file.

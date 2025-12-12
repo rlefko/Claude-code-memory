@@ -3,7 +3,7 @@
 import shutil
 import sys
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 from .types import CheckCategory, CheckResult, CheckStatus
 
@@ -75,7 +75,7 @@ def check_package_installed() -> CheckResult:
             )
 
 
-def check_qdrant_connection(config: Optional[Any] = None) -> CheckResult:
+def check_qdrant_connection(config: Any | None = None) -> CheckResult:
     """Check Qdrant database connectivity."""
     try:
         from qdrant_client import QdrantClient
@@ -158,7 +158,7 @@ def check_claude_cli() -> CheckResult:
         )
 
 
-def check_openai_key(config: Optional[Any] = None) -> CheckResult:
+def check_openai_key(config: Any | None = None) -> CheckResult:
     """Check if OpenAI API key is configured."""
     import os
 
@@ -202,7 +202,7 @@ def check_openai_key(config: Optional[Any] = None) -> CheckResult:
         )
 
 
-def check_voyage_key(config: Optional[Any] = None) -> CheckResult:
+def check_voyage_key(config: Any | None = None) -> CheckResult:
     """Check if Voyage AI API key is configured."""
     import os
 
@@ -295,7 +295,7 @@ def check_project_initialized(project_path: Path) -> CheckResult:
         )
 
 
-def check_collection_exists(config: Optional[Any], collection_name: str) -> CheckResult:
+def check_collection_exists(config: Any | None, collection_name: str) -> CheckResult:
     """Check if the specified collection exists in Qdrant."""
     if not collection_name:
         return CheckResult(
@@ -361,6 +361,6 @@ def check_collection_exists(config: Optional[Any], collection_name: str) -> Chec
             name="collection_exists",
             category=CheckCategory.PROJECT,
             status=CheckStatus.SKIP,
-            message=f"Cannot check collection (Qdrant unavailable)",
+            message="Cannot check collection (Qdrant unavailable)",
             details={"error": str(e)},
         )

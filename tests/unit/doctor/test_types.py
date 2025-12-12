@@ -2,8 +2,6 @@
 
 from pathlib import Path
 
-import pytest
-
 from claude_indexer.doctor.types import (
     CheckCategory,
     CheckResult,

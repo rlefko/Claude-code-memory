@@ -475,7 +475,7 @@ class VisualClusteringEngine:
                     representative=representative,
                     avg_hamming_distance=1.0 - avg_sim,
                     is_consistent=avg_sim >= self.similar_threshold,
-                    variant_count=len(set(e.selector for e in elements)),
+                    variant_count=len({e.selector for e in elements}),
                 )
             )
 
@@ -527,7 +527,7 @@ class VisualClusteringEngine:
                             identical_indices, distance_matrix
                         ),
                         is_consistent=True,
-                        variant_count=len(set(e.selector for e in elements)),
+                        variant_count=len({e.selector for e in elements}),
                     )
                 )
 
@@ -551,7 +551,7 @@ class VisualClusteringEngine:
         by_role = self._group_by_role(screenshots)
 
         findings = []
-        for role, role_screenshots in by_role.items():
+        for _role, role_screenshots in by_role.items():
             if len(role_screenshots) < 3:
                 continue
 
@@ -570,7 +570,7 @@ class VisualClusteringEngine:
                         representative=role_screenshots[0],
                         avg_hamming_distance=1.0 - avg_sim,
                         is_consistent=False,
-                        variant_count=len(set(s.selector for s in role_screenshots)),
+                        variant_count=len({s.selector for s in role_screenshots}),
                     )
                 )
 

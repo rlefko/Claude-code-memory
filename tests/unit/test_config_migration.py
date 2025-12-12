@@ -3,8 +3,6 @@
 import json
 from pathlib import Path
 
-import pytest
-
 from claude_indexer.config.migration import (
     ConfigMigration,
     MigrationAnalysis,

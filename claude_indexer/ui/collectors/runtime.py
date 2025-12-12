@@ -9,7 +9,13 @@ import subprocess
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from .element_targeting import DiscoveredElement, ElementTargetingStrategy
+    from .pseudo_states import PseudoStateCapture
+    from .screenshots import ScreenshotCapture
+    from .style_capture import ComputedStyleCapture
 
 try:
     from playwright.async_api import (
@@ -417,7 +423,6 @@ class RuntimeCollector:
                     )
 
                 # Discover elements
-                from .element_targeting import DiscoveredElement
 
                 elements = await targeting.discover_elements(page)
 

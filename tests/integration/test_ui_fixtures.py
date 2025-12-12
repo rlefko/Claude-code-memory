@@ -9,34 +9,32 @@ These tests validate that the UI consistency checker correctly identifies:
 - Baseline vs new issue separation
 """
 
-import os
 from pathlib import Path
-from typing import Any
 
 import pytest
 
 # Import UI modules
 try:
-    from claude_indexer.ui.collectors.source import SourceCollector
+    from claude_indexer.ui.collectors.source import SourceCollector  # noqa: F401
     from claude_indexer.ui.config import UIQualityConfig
-    from claude_indexer.ui.models import Finding, Severity
+    from claude_indexer.ui.models import Finding, Severity  # noqa: F401
     from claude_indexer.ui.normalizers.style import StyleNormalizer
     from claude_indexer.ui.normalizers.token_resolver import TokenResolver
-    from claude_indexer.ui.rules.diff_filter import DiffAwareFilter
-    from claude_indexer.ui.rules.duplication import (
+    from claude_indexer.ui.rules.diff_filter import DiffAwareFilter  # noqa: F401
+    from claude_indexer.ui.rules.duplication import (  # noqa: F401
         ComponentDuplicateClusterRule,
         StyleDuplicateSetRule,
         StyleNearDuplicateSetRule,
     )
     from claude_indexer.ui.rules.engine import RuleEngine
-    from claude_indexer.ui.rules.inconsistency import (
+    from claude_indexer.ui.rules.inconsistency import (  # noqa: F401
         FocusRingInconsistentRule,
     )
     from claude_indexer.ui.rules.smells import (
         CSSSpecificityEscalationRule,
         ImportantNewUsageRule,
     )
-    from claude_indexer.ui.rules.token_drift import (
+    from claude_indexer.ui.rules.token_drift import (  # noqa: F401
         ColorNonTokenRule,
         RadiusOffScaleRule,
         SpacingOffScaleRule,
@@ -164,7 +162,7 @@ class TestTokenDriftDetection:
         # Should have zero or minimal violations
         assert (
             len(findings) <= 2
-        ), f"Canonical Input.tsx should have minimal color violations"
+        ), "Canonical Input.tsx should have minimal color violations"
 
     def test_svelte_input_has_token_drift(
         self, fixture_path: Path, token_resolver: TokenResolver
@@ -239,7 +237,7 @@ class TestDuplicateDetection:
         assert "variant" in button_content.lower()
         assert "kind" in variant_content.lower()  # Different prop name
 
-        rule = StyleNearDuplicateSetRule()
+        StyleNearDuplicateSetRule()
         # Near-duplicate detection would involve structural comparison
         # This is a simplified check
         assert button_path.exists()

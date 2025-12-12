@@ -1,7 +1,6 @@
 """Tests for the QueryResultCache."""
 
 import time
-from unittest.mock import patch
 
 import pytest
 
@@ -227,7 +226,6 @@ class TestQueryResultCache:
         """Test thread-safe operations."""
         import threading
 
-        results = []
         errors = []
 
         def writer():

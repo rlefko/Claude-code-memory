@@ -1,14 +1,11 @@
 """Unit tests for IndexingCheckpoint."""
 
 import json
-from datetime import datetime, timedelta, timezone
-from pathlib import Path
-from unittest.mock import patch
+from datetime import UTC, datetime, timedelta
 
 import pytest
 
 from claude_indexer.indexing.checkpoint import IndexingCheckpoint
-from claude_indexer.indexing.types import CheckpointState, PipelineConfig
 
 
 class TestIndexingCheckpoint:
@@ -45,7 +42,7 @@ class TestIndexingCheckpoint:
     def test_exists_with_checkpoint(self, checkpoint, temp_cache_dir):
         """Test exists returns True with valid checkpoint."""
         # Create a checkpoint file
-        now = datetime.now(timezone.utc).isoformat()
+        now = datetime.now(UTC).isoformat()
         state = {
             "collection_name": "test-collection",
             "project_path": "/test/path",
@@ -70,7 +67,7 @@ class TestIndexingCheckpoint:
     def test_exists_stale_checkpoint(self, checkpoint, temp_cache_dir):
         """Test exists returns False for stale checkpoint."""
         # Create a checkpoint from 25 hours ago (stale)
-        stale_time = (datetime.now(timezone.utc) - timedelta(hours=25)).isoformat()
+        stale_time = (datetime.now(UTC) - timedelta(hours=25)).isoformat()
         state = {
             "collection_name": "test-collection",
             "project_path": "/test/path",
@@ -247,7 +244,7 @@ class TestIndexingCheckpoint:
 
     def test_load_checkpoint(self, checkpoint, temp_cache_dir):
         """Test loading checkpoint from disk."""
-        now = datetime.now(timezone.utc).isoformat()
+        now = datetime.now(UTC).isoformat()
         state = {
             "collection_name": "test-collection",
             "project_path": "/test/path",

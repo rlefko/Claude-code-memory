@@ -34,10 +34,7 @@ class PromptHandler:
             }
 
             # Start from target file's directory if provided, otherwise current working directory
-            if file_path:
-                current = Path(file_path).resolve().parent
-            else:
-                current = Path.cwd()
+            current = Path(file_path).resolve().parent if file_path else Path.cwd()
 
             best_score = 0
             best_path = None

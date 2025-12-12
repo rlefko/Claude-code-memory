@@ -1,8 +1,7 @@
 """Tests for init manager functionality."""
 
-import json
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 

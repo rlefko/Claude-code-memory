@@ -11,7 +11,6 @@ Requires pytest-benchmark: pip install pytest-benchmark
 
 import time
 from pathlib import Path
-from typing import Callable, List
 
 import pytest
 
@@ -19,12 +18,12 @@ import pytest
 try:
     from claude_indexer.ui.ci.audit_runner import CIAuditRunner
     from claude_indexer.ui.cli.guard import UIGuard
-    from claude_indexer.ui.collectors.source import SourceCollector
+    from claude_indexer.ui.collectors.source import SourceCollector  # noqa: F401
     from claude_indexer.ui.config import UIQualityConfig
     from claude_indexer.ui.normalizers.style import StyleNormalizer
     from claude_indexer.ui.normalizers.token_resolver import TokenResolver
-    from claude_indexer.ui.rules.engine import RuleEngine
-    from claude_indexer.ui.rules.smells import ImportantNewUsageRule
+    from claude_indexer.ui.rules.engine import RuleEngine  # noqa: F401
+    from claude_indexer.ui.rules.smells import ImportantNewUsageRule  # noqa: F401
     from claude_indexer.ui.rules.token_drift import ColorNonTokenRule
 
     UI_MODULES_AVAILABLE = True
@@ -73,7 +72,7 @@ class TestTier0Performance:
 
             # Run token drift detection
             rule = ColorNonTokenRule(token_resolver=token_resolver)
-            findings = rule.check_content("test.tsx", single_file_content)
+            rule.check_content("test.tsx", single_file_content)
 
             elapsed = time.perf_counter() - start
             timings.append(elapsed)
@@ -106,7 +105,7 @@ class TestTier0Performance:
             rule = ColorNonTokenRule(token_resolver=token_resolver)
             for file_path in files:
                 content = file_path.read_text()
-                findings = rule.check_file(file_path, content)
+                rule.check_file(file_path, content)
 
             elapsed = time.perf_counter() - start
             timings.append(elapsed)
@@ -137,7 +136,7 @@ class TestTier0Performance:
             start = time.perf_counter()
 
             guard = UIGuard(project_path=fixture_path)
-            result = guard.check_files(changed_files)
+            guard.check_files(changed_files)
 
             elapsed = time.perf_counter() - start
             timings.append(elapsed)
@@ -162,7 +161,7 @@ class TestTier0Performance:
 
             # Extract and normalize styles
             styles = normalizer.extract_styles(single_file_content)
-            normalized = [normalizer.normalize(s) for s in styles]
+            [normalizer.normalize(s) for s in styles]
 
             elapsed = time.perf_counter() - start
             timings.append(elapsed)
@@ -198,7 +197,7 @@ class TestTier1Performance:
         for _ in range(min(3, benchmark_iterations)):  # Fewer iterations for slow tests
             start = time.perf_counter()
 
-            result = runner.run_audit()
+            runner.run_audit()
 
             elapsed = time.perf_counter() - start
             timings.append(elapsed)
@@ -238,7 +237,7 @@ class TestTier1Performance:
             start = time.perf_counter()
 
             clustering = Clustering(threshold=0.7)
-            clusters = clustering.cluster(fingerprints)
+            clustering.cluster(fingerprints)
 
             elapsed = time.perf_counter() - start
             timings.append(elapsed)
@@ -265,14 +264,14 @@ class TestTier1Performance:
             cache.clear()
 
             start = time.perf_counter()
-            result = runner.run_audit()
+            runner.run_audit()
             cold_timings.append(time.perf_counter() - start)
 
         # Second run (warm cache)
         warm_timings = []
         for _ in range(3):
             start = time.perf_counter()
-            result = runner.run_audit()
+            runner.run_audit()
             warm_timings.append(time.perf_counter() - start)
 
         cold_avg = sum(cold_timings) / len(cold_timings)
@@ -305,7 +304,7 @@ class TestTier2Performance:
             start = time.perf_counter()
 
             engine = CritiqueEngine(project_path=fixture_path)
-            critique = engine.generate_critique(focus_area=None)
+            engine.generate_critique(focus_area=None)
 
             elapsed = time.perf_counter() - start
             timings.append(elapsed)
@@ -331,7 +330,7 @@ class TestTier2Performance:
             start = time.perf_counter()
 
             reporter = HTMLReporter()
-            html = reporter.generate_report(result)
+            reporter.generate_report(result)
 
             elapsed = time.perf_counter() - start
             timings.append(elapsed)
@@ -352,7 +351,7 @@ class TestMemoryUsage:
 
         config = UIQualityConfig()
         runner = CIAuditRunner(project_path=medium_codebase, config=config)
-        result = runner.run_audit()
+        runner.run_audit()
 
         current, peak = tracemalloc.get_traced_memory()
         tracemalloc.stop()
@@ -405,12 +404,12 @@ class TestScalabilityMetrics:
         # Full analysis
         runner = CIAuditRunner(project_path=fixture_path, config=config)
         start = time.perf_counter()
-        full_result = runner.run_audit(incremental=False)
+        runner.run_audit(incremental=False)
         full_time = time.perf_counter() - start
 
         # Incremental analysis (simulating no changes)
         start = time.perf_counter()
-        incremental_result = runner.run_audit(incremental=True)
+        runner.run_audit(incremental=True)
         incremental_time = time.perf_counter() - start
 
         # Incremental should be at least 50% faster when nothing changed

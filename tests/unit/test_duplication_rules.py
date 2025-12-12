@@ -165,7 +165,7 @@ class TestStyleNearDuplicateSetRule:
         ]
 
         context = RuleContext(config=config, styles=styles)
-        findings = rule.evaluate(context)
+        rule.evaluate(context)
 
         # Should detect near-duplicates
         # Note: actual detection depends on SimHash implementation
@@ -180,7 +180,7 @@ class TestStyleNearDuplicateSetRule:
         ]
 
         context = RuleContext(config=config, styles=styles)
-        findings = rule.evaluate(context)
+        rule.evaluate(context)
 
         # Very different styles should not be near-duplicates
 
@@ -239,7 +239,7 @@ class TestUtilityDuplicateSequenceRule:
         ]
 
         context = RuleContext(config=config, components=components)
-        findings = rule.evaluate(context)
+        rule.evaluate(context)
 
         # Each sequence appears only once, so should not be reported
 
@@ -273,7 +273,7 @@ class TestUtilityDuplicateSequenceRule:
         ]
 
         context = RuleContext(config=config, components=components)
-        findings = rule.evaluate(context)
+        rule.evaluate(context)
 
         # Sequence too short to report (only 2 classes, need 3)
 
@@ -362,7 +362,7 @@ class TestComponentDuplicateClusterRule:
             similarity_engine=similarity_engine,
         )
 
-        findings = rule.evaluate(context)
+        rule.evaluate(context)
 
         # May or may not find clusters depending on implementation
 

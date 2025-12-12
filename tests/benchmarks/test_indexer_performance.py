@@ -11,13 +11,9 @@ Milestone 6.4: Test Coverage Complete (v2.9.20)
 """
 
 import gc
-import os
-import sys
-import tempfile
 import time
 from pathlib import Path
-from typing import List
-from unittest.mock import Mock, patch
+from unittest.mock import Mock
 
 import pytest
 
@@ -32,7 +28,7 @@ THRESHOLDS = {
 
 
 @pytest.fixture
-def sample_python_files(tmp_path) -> List[Path]:
+def sample_python_files(tmp_path) -> list[Path]:
     """Generate sample Python files for performance testing."""
     files = []
     src_dir = tmp_path / "src"
@@ -231,7 +227,7 @@ class TestIndexerPerformance:
             files_per_second > 10
         ), f"Throughput {files_per_second:.1f} files/s is too slow"
 
-        print(f"\nBatch indexing throughput:")
+        print("\nBatch indexing throughput:")
         print(f"  Files: {files_per_second:.1f} files/second")
         print(f"  Entities: {entities_per_second:.1f} entities/second")
 
@@ -327,22 +323,12 @@ class TestRuleEnginePerformance:
     def test_rule_execution_speed(self):
         """Individual rules should execute quickly."""
         # Simulate rule execution
-        sample_code = '''
-def example_function(x, y):
-    """Example function."""
-    result = x + y
-    print(f"Debug: {result}")  # This should trigger debug_statements rule
-    return result
-'''
 
         with PerformanceTimer("rule_check") as timer:
             # Simulate checking multiple rules
             rules_checked = 0
             for _ in range(10):
                 # Simple pattern checks (simulating real rules)
-                has_print = "print(" in sample_code
-                has_todo = "TODO" in sample_code
-                has_debugger = "debugger" in sample_code
                 rules_checked += 3
 
         avg_per_rule = timer.duration_ms / rules_checked

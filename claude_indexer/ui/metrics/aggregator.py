@@ -245,7 +245,7 @@ class MetricsAggregator:
         Returns:
             Dict mapping target names to met status.
         """
-        return {name: self.is_target_met(name) for name in self.report.targets.keys()}
+        return {name: self.is_target_met(name) for name in self.report.targets}
 
     def generate_summary(self) -> dict[str, Any]:
         """Generate comprehensive summary for dashboard/CLI.
@@ -346,7 +346,7 @@ class MetricsAggregator:
             lines.extend(
                 [
                     f"# HELP ui_quality_latency_p95_ms P95 latency for tier {tier_num}",
-                    f"# TYPE ui_quality_latency_p95_ms gauge",
+                    "# TYPE ui_quality_latency_p95_ms gauge",
                     f'ui_quality_latency_p95_ms{{tier="{tier_num}"}} {percentiles.p95_ms}',
                     "",
                 ]

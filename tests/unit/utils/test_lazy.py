@@ -3,11 +3,8 @@
 import threading
 import time
 
-import pytest
-
 from claude_indexer.utils.lazy import (
     LazyModule,
-    LazyProperty,
     lazy_init,
     lazy_property,
 )
@@ -272,7 +269,6 @@ class TestLazyModule:
     def test_thread_safety(self):
         """Test thread-safe module loading."""
         lazy_modules = [LazyModule("json") for _ in range(5)]
-        load_counts = [0]
         errors = []
 
         def use_module(lazy_mod):

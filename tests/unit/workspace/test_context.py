@@ -1,7 +1,6 @@
 """Unit tests for workspace context module."""
 
 import time
-from pathlib import Path
 
 import pytest
 

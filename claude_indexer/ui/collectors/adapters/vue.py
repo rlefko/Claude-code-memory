@@ -132,7 +132,7 @@ class VueAdapter(BaseSourceAdapter):
 
             # Find inline style bindings
             for match in re.finditer(r':style\s*=\s*["\']([^"\']+)["\']', template):
-                style_expr = match.group(1)
+                match.group(1)
                 line_number = (
                     template_line_offset + template[: match.start()].count("\n") + 1
                 )

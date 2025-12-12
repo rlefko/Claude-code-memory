@@ -31,7 +31,7 @@ import sys
 import threading
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 try:
     from utils.code_analyzer import CodeAnalyzer
@@ -58,7 +58,7 @@ MAX_LATENCY_MS = int(os.getenv("MEMORY_GUARD_MAX_LATENCY_MS", "300"))
 class BypassManager:
     """Manages Memory Guard bypass state with simple on/off commands."""
 
-    def __init__(self, project_root: Optional[Path] = None):
+    def __init__(self, project_root: Path | None = None):
         self.project_root = project_root or Path.cwd()
         self.state_file = self.project_root / ".claude" / "guard_state.json"
         self.lock = threading.Lock()
@@ -155,7 +155,7 @@ class MemoryGuard:
     """
 
     def __init__(
-        self, hook_data: Optional[dict[str, Any]] = None, mode: str = DEFAULT_MODE
+        self, hook_data: dict[str, Any] | None = None, mode: str = DEFAULT_MODE
     ):
         """Initialize Memory Guard.
 
@@ -185,9 +185,7 @@ class MemoryGuard:
         if DEBUG_ENABLED:
             self._ensure_debug_files_exist()
 
-    def _early_project_detection(
-        self, hook_data: Optional[dict[str, Any]] = None
-    ) -> None:
+    def _early_project_detection(self, hook_data: dict[str, Any] | None = None) -> None:
         """Attempt early project detection from hook data or current directory."""
         try:
             file_path = None
@@ -223,7 +221,7 @@ class MemoryGuard:
             # If detection fails, we'll retry later in process_hook
             pass
 
-    def _detect_project_root(self, file_path: Optional[str] = None) -> Optional[Path]:
+    def _detect_project_root(self, file_path: str | None = None) -> Path | None:
         """Detect the project root directory using Claude-first weighted scoring."""
         try:
             marker_weights = {
@@ -238,10 +236,7 @@ class MemoryGuard:
             }
 
             # Start from target file's directory if provided, otherwise current working directory
-            if file_path:
-                current = Path(file_path).resolve().parent
-            else:
-                current = Path.cwd()
+            current = Path(file_path).resolve().parent if file_path else Path.cwd()
 
             best_score = 0
             best_path = None
@@ -321,13 +316,13 @@ class MemoryGuard:
                 error_log.parent.mkdir(exist_ok=True)
                 with open(error_log, "a") as f:
                     f.write(f"ERROR: {e}\nPATH: {current_log}\nROOT: {base_dir}\n\n")
-            except:
+            except Exception:
                 try:
                     with open("/tmp/memory_guard_error.log", "a") as f:
                         f.write(
                             f"ERROR: {e}\nPATH: {current_log}\nROOT: {base_dir}\n\n"
                         )
-                except:
+                except Exception:
                     pass
 
     def _get_current_debug_log(self, base_dir: Path, is_new_run: bool) -> Path:
@@ -389,7 +384,7 @@ class MemoryGuard:
             # Silently fail if we can't create files (permissions issue, etc.)
             pass
 
-    def should_process(self, hook_data: dict[str, Any]) -> tuple[bool, Optional[str]]:
+    def should_process(self, hook_data: dict[str, Any]) -> tuple[bool, str | None]:
         """Determine if this hook event should be processed."""
         # Check global bypass state first
         if self.bypass_manager.is_global_disabled():
@@ -476,7 +471,7 @@ class MemoryGuard:
         analysis = self.code_analyzer.analyze_code(code_info)
         return analysis["has_definitions"]
 
-    def _get_qdrant_collection_name(self) -> Optional[str]:
+    def _get_qdrant_collection_name(self) -> str | None:
         """Extract Qdrant collection name from MCP collection prefix.
 
         The MCP collection is formatted as 'mcp__collection-name-memory__'.
@@ -491,7 +486,7 @@ class MemoryGuard:
 
     def _run_tier2_check(
         self, tool_name: str, tool_input: dict[str, Any], code_info: str
-    ) -> Optional[dict[str, Any]]:
+    ) -> dict[str, Any] | None:
         """Run Tier 2 fast duplicate detection. Returns result or None to escalate.
 
         Tier 2 uses direct Qdrant search to bypass Claude CLI for clear-cut cases:
@@ -618,7 +613,7 @@ class MemoryGuard:
 
 🚨 ERROR REPORTING: If you cannot access MCP memory tools ({self.mcp_collection}*), report in detail:
 - Which exact MCP tool you tried to call (e.g., "{self.mcp_collection}search_similar")
-- What parameters you used (query, entityTypes, limit) 
+- What parameters you used (query, entityTypes, limit)
 - What error message you received (timeout, not found, access denied, etc.)
 - Include this in your debug field with prefix "MCP_ERROR:"
 
@@ -851,7 +846,7 @@ IMPORTANT: Return ONLY the JSON object, no explanatory text."""
                 )
                 parse_crash_info += f"Raw stdout length: {len(result.stdout)} chars\n"
                 parse_crash_info += (
-                    f"RESULT: Graceful degradation - approving operation\n"
+                    "RESULT: Graceful degradation - approving operation\n"
                 )
                 self.save_debug_info(parse_crash_info)
                 raise  # Re-raise to be caught by outer exception handler
@@ -1074,7 +1069,7 @@ IMPORTANT: Return ONLY the JSON object, no explanatory text."""
                     "✅ FAST MODE: Passed Tier 0-2 checks (Tier 3 deferred to pre-commit)"
                 )
                 self.save_debug_info(
-                    f"\nFAST MODE: Skipping Tier 3 - deferred to pre-commit validation\n"
+                    "\nFAST MODE: Skipping Tier 3 - deferred to pre-commit validation\n"
                 )
                 return result
 

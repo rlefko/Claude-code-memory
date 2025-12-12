@@ -122,7 +122,7 @@ class QdrantStore(ManagedVectorStore, ContentHashMixin):
         self._sparse_vector_cache = {}
 
         # Query result cache for search operations
-        self._query_cache: "QueryResultCache | None" = query_cache
+        self._query_cache: "QueryResultCache | None" = query_cache  # noqa: UP037
         if enable_query_cache and query_cache is None:
             from .query_cache import QueryResultCache
 
@@ -1566,8 +1566,12 @@ class QdrantStore(ManagedVectorStore, ContentHashMixin):
             else:
                 query_vector = list(query_vector)
 
+            # Use named vector "dense" for collections with multiple vector types
+            # Collections created with hybrid search have "dense" and "bm25" vectors
             search_results = self.client.search(
-                collection_name=collection_name, query_vector=query_vector, limit=top_k
+                collection_name=collection_name,
+                query_vector=("dense", query_vector),
+                limit=top_k,
             )
 
             # Return results in expected format for tests
@@ -2555,10 +2559,10 @@ class QdrantStore(ManagedVectorStore, ContentHashMixin):
             # ENHANCED DEBUG: Always log sample relations for debugging
             if len(relations) > 0:
                 logger.debug("Sample relations being checked:")
-                for i, rel in enumerate(relations[:5]):  # Show 5 instead of 3
-                    from_e = rel.payload.get("entity_name", "")
-                    to_e = rel.payload.get("relation_target", "")
-                    rel_type = rel.payload.get("relation_type", "")
+                for _i, rel in enumerate(relations[:5]):  # Show 5 instead of 3
+                    rel.payload.get("entity_name", "")
+                    rel.payload.get("relation_target", "")
+                    rel.payload.get("relation_type", "")
                     imp_type = rel.payload.get("import_type", "none")
                     # logger.debug(
                     #     f"Relation {i+1}: {from_e} --{rel_type}--> {to_e} [import_type: {imp_type}]"
