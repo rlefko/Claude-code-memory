@@ -273,13 +273,15 @@ class DocumentedClass:
         entities_with_docstring_content = []
         for e in result.entities:
             # Check docstring field
-            if e.docstring:
-                entities_with_docstring_content.append(e)
-            # Check observations for docstring content
-            elif any("Purpose:" in obs or "docstring" in obs.lower() for obs in e.observations):
+            if e.docstring or any(
+                "Purpose:" in obs or "docstring" in obs.lower()
+                for obs in e.observations
+            ):
                 entities_with_docstring_content.append(e)
 
-        assert len(entities_with_docstring_content) >= 1  # Should find entities with docstrings
+        assert (
+            len(entities_with_docstring_content) >= 1
+        )  # Should find entities with docstrings
 
 
 class TestMarkdownParser:

@@ -547,7 +547,9 @@ class TestQdrantStore:
 
                 mock_manual_point = MagicMock()
                 mock_manual_point.id = "manual_point_1"
-                mock_manual_point.payload = {"name": "manual_memory"}  # No file_path in metadata
+                mock_manual_point.payload = {
+                    "name": "manual_memory"
+                }  # No file_path in metadata
 
                 # scroll() returns (points, next_page_offset)
                 mock_client.scroll.return_value = (

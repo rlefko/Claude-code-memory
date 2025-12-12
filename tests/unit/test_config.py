@@ -35,11 +35,20 @@ def isolated_config(tmp_path, monkeypatch):
         return original_load_legacy(settings_file)
 
     # Clear environment variables that might interfere
-    for var in ["OPENAI_API_KEY", "VOYAGE_API_KEY", "QDRANT_API_KEY", "QDRANT_URL",
-                "EMBEDDING_PROVIDER", "VOYAGE_MODEL"]:
+    for var in [
+        "OPENAI_API_KEY",
+        "VOYAGE_API_KEY",
+        "QDRANT_API_KEY",
+        "QDRANT_URL",
+        "EMBEDDING_PROVIDER",
+        "VOYAGE_MODEL",
+    ]:
         monkeypatch.delenv(var, raising=False)
 
-    with patch("claude_indexer.config.config_loader.load_legacy_settings", mock_load_legacy_settings):
+    with patch(
+        "claude_indexer.config.config_loader.load_legacy_settings",
+        mock_load_legacy_settings,
+    ):
         yield tmp_path
 
 

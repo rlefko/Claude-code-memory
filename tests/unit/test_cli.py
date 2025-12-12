@@ -122,7 +122,9 @@ class TestIndexCommands:
         mock_indexer._load_previous_statistics.return_value = {}
         mock_indexer._load_state.return_value = {}
         mock_indexer._categorize_file_changes.return_value = ([], [], [])
-        mock_indexer._get_state_file.return_value = Path("test_project/.claude-indexer/state.json")
+        mock_indexer._get_state_file.return_value = Path(
+            "test_project/.claude-indexer/state.json"
+        )
         # Make vector_store raise exception to trigger fallback code path
         mock_indexer.vector_store.backend.client.count.side_effect = Exception(
             "Mock exception"
@@ -318,7 +320,9 @@ class TestIndexCommands:
         mock_indexer._load_previous_statistics.return_value = {}
         mock_indexer._load_state.return_value = {}
         mock_indexer._categorize_file_changes.return_value = ([], [], [])
-        mock_indexer._get_state_file.return_value = Path("test_project/.claude-indexer/state.json")
+        mock_indexer._get_state_file.return_value = Path(
+            "test_project/.claude-indexer/state.json"
+        )
         # Make vector_store raise exception to trigger fallback code path
         mock_indexer.vector_store.backend.client.count.side_effect = Exception(
             "Mock exception"
@@ -344,7 +348,9 @@ class TestIndexCommands:
 
             assert result.exit_code == 0, f"CLI failed with: {result.output}"
             # Check for direct mode message (case-insensitive for provider name)
-            assert "Using Qdrant +" in result.output and "(direct mode)" in result.output
+            assert (
+                "Using Qdrant +" in result.output and "(direct mode)" in result.output
+            )
 
             # Verify that only Qdrant components were created
             # create_embedder_from_config is called with IndexerConfig object

@@ -1804,9 +1804,9 @@ class CoreIndexer:
         all_files = self._find_all_files(include_tests)
         all_current_state = self._get_current_state(all_files)
         current_keys = set(all_current_state.keys())
-        previous_keys = set(
-            k for k in previous_state.keys() if not k.startswith("_")
-        )  # Exclude metadata keys
+        previous_keys = {
+            k for k in previous_state if not k.startswith("_")
+        }  # Exclude metadata keys
         deleted_keys = previous_keys - current_keys
         deleted_files.extend(deleted_keys)
 

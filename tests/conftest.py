@@ -8,6 +8,7 @@ Provides test fixtures for:
 - Configuration management
 """
 
+import json
 import os
 from collections.abc import Iterator
 from pathlib import Path
@@ -110,6 +111,27 @@ def test_add():
     assert add(2, 3) == 5
 '''
     )
+
+    # Create .claude-indexer/config.json for ProjectConfigManager
+    # This prevents FileNotFoundError in watcher tests
+    config_dir = repo_path / ".claude-indexer"
+    config_dir.mkdir()
+    config_json = {
+        "version": "2.6",
+        "project": {
+            "name": "test-project",
+            "collection": "test-collection",
+            "description": "Test project for integration tests",
+        },
+        "indexing": {
+            "file_patterns": {
+                "include": ["*.py"],
+                "exclude": ["__pycache__/", ".git/", "*test*"],
+            }
+        },
+        "watcher": {"enabled": True, "debounce_seconds": 0.1},
+    }
+    (config_dir / "config.json").write_text(json.dumps(config_json, indent=2))
 
     return repo_path
 
