@@ -1041,6 +1041,66 @@ else:
             click.echo(f"❌ Error: {e}", err=True)
             sys.exit(1)
 
+    @cli.command("post-write")
+    @click.argument("file_path", type=click.Path(exists=True))
+    @click.option(
+        "--json",
+        "output_json",
+        is_flag=True,
+        help="Output results as JSON",
+    )
+    @click.option(
+        "--timeout",
+        type=int,
+        default=200,
+        help="Timeout in milliseconds (default: 200)",
+    )
+    @click.option(
+        "--content-stdin",
+        is_flag=True,
+        help="Read file content from stdin (avoids disk read)",
+    )
+    @common_options
+    def post_write(
+        file_path: str,
+        output_json: bool,
+        timeout: int,
+        content_stdin: bool,
+        verbose: bool,
+        quiet: bool,
+        config: str,
+    ) -> None:
+        """Run fast quality checks after file write.
+
+        Optimized for <300ms execution in PostToolUse hooks.
+        Only runs fast rules (is_fast=True) with ON_WRITE trigger.
+
+        Exit codes:
+            0 = No issues found
+            1 = Warnings found (non-blocking)
+
+        Examples:
+            claude-indexer post-write src/main.py
+            claude-indexer post-write src/main.py --json
+            echo "content" | claude-indexer post-write src/main.py --content-stdin
+        """
+        from .hooks.post_write import run_post_write_check
+        import sys as _sys
+
+        # Read content from stdin if requested
+        content = None
+        if content_stdin:
+            content = _sys.stdin.read()
+
+        # Run the check and get exit code
+        exit_code = run_post_write_check(
+            file_path=file_path,
+            content=content,
+            output_json=output_json,
+        )
+
+        _sys.exit(exit_code)
+
     @cli.group()
     def watch() -> None:
         """File watching commands."""
