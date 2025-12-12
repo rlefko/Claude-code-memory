@@ -900,3 +900,228 @@ class TestSearchCommand:
 
             assert result.exit_code == 0
             assert "No results found" in result.output
+
+
+class TestCollectionsCommands:
+    """Test collections command group for multi-repository isolation."""
+
+    def test_collections_help(self):
+        """Test collections command help."""
+        if not CLI_AVAILABLE:
+            pytest.skip("CLI not available")
+
+        runner = CliRunner()
+        result = runner.invoke(cli, ["collections", "--help"])
+
+        assert result.exit_code == 0
+        assert "Manage Qdrant collections" in result.output
+
+    @patch("claude_indexer.init.collection_manager.CollectionManager")
+    def test_collections_list(self, mock_manager_class):
+        """Test listing collections."""
+        if not CLI_AVAILABLE:
+            pytest.skip("CLI not available")
+
+        mock_manager = MagicMock()
+        mock_manager.check_qdrant_available.return_value = True
+        mock_manager.list_all_collections.return_value = [
+            "claude_project1_abc123",
+            "claude_project2_def456",
+            "test-collection",
+        ]
+        mock_manager_class.return_value = mock_manager
+
+        runner = CliRunner()
+        result = runner.invoke(cli, ["collections", "list"])
+
+        assert result.exit_code == 0
+        assert "Found 3 collection(s)" in result.output
+        assert "claude_project1_abc123" in result.output
+
+    @patch("claude_indexer.init.collection_manager.CollectionManager")
+    def test_collections_list_with_filter(self, mock_manager_class):
+        """Test listing collections with prefix filter."""
+        if not CLI_AVAILABLE:
+            pytest.skip("CLI not available")
+
+        mock_manager = MagicMock()
+        mock_manager.check_qdrant_available.return_value = True
+        mock_manager.list_collections_with_prefix.return_value = [
+            "claude_project1_abc123",
+            "claude_project2_def456",
+        ]
+        mock_manager_class.return_value = mock_manager
+
+        runner = CliRunner()
+        result = runner.invoke(cli, ["collections", "list", "--filter", "claude"])
+
+        assert result.exit_code == 0
+        assert "Found 2 collection(s)" in result.output
+        mock_manager.list_collections_with_prefix.assert_called_once_with("claude")
+
+    @patch("claude_indexer.init.collection_manager.CollectionManager")
+    def test_collections_list_json(self, mock_manager_class):
+        """Test listing collections with JSON output."""
+        if not CLI_AVAILABLE:
+            pytest.skip("CLI not available")
+
+        mock_manager = MagicMock()
+        mock_manager.check_qdrant_available.return_value = True
+        mock_manager.list_all_collections.return_value = ["collection1", "collection2"]
+        mock_manager_class.return_value = mock_manager
+
+        runner = CliRunner()
+        result = runner.invoke(cli, ["collections", "list", "--json"])
+
+        assert result.exit_code == 0
+        assert '"count": 2' in result.output
+        assert '"collections":' in result.output
+
+    @patch("claude_indexer.init.collection_manager.CollectionManager")
+    def test_collections_list_qdrant_unavailable(self, mock_manager_class):
+        """Test collections list when Qdrant is unavailable."""
+        if not CLI_AVAILABLE:
+            pytest.skip("CLI not available")
+
+        mock_manager = MagicMock()
+        mock_manager.check_qdrant_available.return_value = False
+        mock_manager_class.return_value = mock_manager
+
+        runner = CliRunner()
+        result = runner.invoke(cli, ["collections", "list"])
+
+        assert result.exit_code == 1
+        assert "Qdrant not available" in result.output
+
+    @patch("claude_indexer.init.collection_manager.CollectionManager")
+    def test_collections_show(self, mock_manager_class):
+        """Test showing collection details."""
+        if not CLI_AVAILABLE:
+            pytest.skip("CLI not available")
+
+        mock_manager = MagicMock()
+        mock_manager.get_collection_info.return_value = {
+            "name": "claude_myproject_abc123",
+            "exists": True,
+            "qdrant_available": True,
+            "points_count": 150,
+            "vectors_count": 300,
+        }
+        mock_manager_class.return_value = mock_manager
+
+        runner = CliRunner()
+        result = runner.invoke(cli, ["collections", "show", "claude_myproject_abc123"])
+
+        assert result.exit_code == 0
+        assert "Collection: claude_myproject_abc123" in result.output
+        assert "Exists: ✅" in result.output
+        assert "Points: 150" in result.output
+
+    @patch("claude_indexer.init.collection_manager.CollectionManager")
+    def test_collections_show_nonexistent(self, mock_manager_class):
+        """Test showing details for non-existent collection."""
+        if not CLI_AVAILABLE:
+            pytest.skip("CLI not available")
+
+        mock_manager = MagicMock()
+        mock_manager.get_collection_info.return_value = {
+            "name": "nonexistent",
+            "exists": False,
+            "qdrant_available": True,
+        }
+        mock_manager_class.return_value = mock_manager
+
+        runner = CliRunner()
+        result = runner.invoke(cli, ["collections", "show", "nonexistent"])
+
+        assert result.exit_code == 0
+        assert "Exists: ❌" in result.output
+
+    @patch("claude_indexer.init.collection_manager.CollectionManager")
+    def test_collections_delete_force(self, mock_manager_class):
+        """Test deleting collection with --force flag."""
+        if not CLI_AVAILABLE:
+            pytest.skip("CLI not available")
+
+        mock_manager = MagicMock()
+        mock_manager.get_collection_info.return_value = {
+            "name": "test-collection",
+            "exists": True,
+            "qdrant_available": True,
+            "points_count": 100,
+        }
+        mock_result = MagicMock()
+        mock_result.success = True
+        mock_result.message = "Deleted collection 'test-collection'"
+        mock_manager.delete_collection.return_value = mock_result
+        mock_manager_class.return_value = mock_manager
+
+        runner = CliRunner()
+        result = runner.invoke(
+            cli, ["collections", "delete", "test-collection", "--force"]
+        )
+
+        assert result.exit_code == 0
+        assert "Deleted collection" in result.output
+
+    @patch("claude_indexer.init.collection_manager.CollectionManager")
+    def test_collections_delete_nonexistent(self, mock_manager_class):
+        """Test deleting non-existent collection."""
+        if not CLI_AVAILABLE:
+            pytest.skip("CLI not available")
+
+        mock_manager = MagicMock()
+        mock_manager.get_collection_info.return_value = {
+            "name": "nonexistent",
+            "exists": False,
+            "qdrant_available": True,
+        }
+        mock_manager_class.return_value = mock_manager
+
+        runner = CliRunner()
+        result = runner.invoke(cli, ["collections", "delete", "nonexistent", "--force"])
+
+        assert result.exit_code == 1
+        assert "does not exist" in result.output
+
+    @patch("claude_indexer.init.collection_manager.CollectionManager")
+    def test_collections_cleanup_dry_run(self, mock_manager_class):
+        """Test cleanup with dry run."""
+        if not CLI_AVAILABLE:
+            pytest.skip("CLI not available")
+
+        mock_manager = MagicMock()
+        mock_manager.check_qdrant_available.return_value = True
+        mock_manager.list_collections_with_prefix.return_value = [
+            "claude_project1_abc123",
+            "claude_project2_def456",
+        ]
+        mock_manager.get_collection_info.side_effect = [
+            {"name": "claude_project1_abc123", "exists": True, "points_count": 100},
+            {"name": "claude_project2_def456", "exists": True, "points_count": 200},
+        ]
+        mock_manager_class.return_value = mock_manager
+
+        runner = CliRunner()
+        result = runner.invoke(cli, ["collections", "cleanup", "--dry-run"])
+
+        assert result.exit_code == 0
+        assert "Found 2 collection(s)" in result.output
+        assert "[Dry run]" in result.output
+
+    @patch("claude_indexer.init.collection_manager.CollectionManager")
+    def test_collections_cleanup_no_collections(self, mock_manager_class):
+        """Test cleanup when no collections match prefix."""
+        if not CLI_AVAILABLE:
+            pytest.skip("CLI not available")
+
+        mock_manager = MagicMock()
+        mock_manager.check_qdrant_available.return_value = True
+        mock_manager.list_collections_with_prefix.return_value = []
+        mock_manager_class.return_value = mock_manager
+
+        runner = CliRunner()
+        result = runner.invoke(cli, ["collections", "cleanup", "--prefix", "nonexistent"])
+
+        assert result.exit_code == 0
+        assert "No collections found" in result.output

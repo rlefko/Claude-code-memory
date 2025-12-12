@@ -1,6 +1,6 @@
 """Qdrant collection management for initialization."""
 
-from typing import Optional
+from typing import List, Optional
 
 from ..config.config_loader import ConfigLoader
 from ..indexer_logging import get_logger
@@ -261,3 +261,142 @@ class CollectionManager:
             logger.debug(f"Error getting collection info: {e}")
 
         return info
+
+    def list_all_collections(self) -> List[str]:
+        """List all collections from Qdrant.
+
+        Returns:
+            List of collection names.
+        """
+        store = self._get_store()
+        if store is None:
+            return []
+
+        try:
+            return store.list_collections()
+        except Exception as e:
+            logger.debug(f"Error listing collections: {e}")
+            return []
+
+    def list_collections_with_prefix(self, prefix: str) -> List[str]:
+        """List collections matching a prefix.
+
+        Args:
+            prefix: Prefix to filter by (e.g., "claude").
+
+        Returns:
+            List of matching collection names.
+        """
+        all_collections = self.list_all_collections()
+        prefix_pattern = f"{prefix}_"
+        return [c for c in all_collections if c.startswith(prefix_pattern)]
+
+    def find_stale_collections(
+        self,
+        prefix: str = "claude",
+        known_project_hashes: Optional[List[str]] = None,
+    ) -> List[dict]:
+        """Find stale collections that may be orphaned.
+
+        A collection is considered stale if:
+        - It matches the prefix pattern
+        - Its hash suffix doesn't match any known project
+
+        Args:
+            prefix: Collection prefix to filter.
+            known_project_hashes: List of known valid project hashes.
+
+        Returns:
+            List of dicts with collection name and reason for being stale.
+        """
+        stale = []
+        collections = self.list_collections_with_prefix(prefix)
+
+        for collection_name in collections:
+            # Parse collection name: {prefix}_{name}_{hash}
+            parts = collection_name.split("_")
+            if len(parts) < 3:
+                # Old format or malformed - skip
+                continue
+
+            collection_hash = parts[-1]
+
+            # Check if hash is known
+            if known_project_hashes and collection_hash not in known_project_hashes:
+                stale.append({
+                    "name": collection_name,
+                    "reason": "Unknown project hash - may be orphaned",
+                    "hash": collection_hash,
+                })
+
+        return stale
+
+    def cleanup_collections(
+        self,
+        collections_to_delete: List[str],
+        dry_run: bool = True,
+    ) -> InitStepResult:
+        """Remove specified collections.
+
+        Args:
+            collections_to_delete: List of collection names to delete.
+            dry_run: If True, only report what would be deleted.
+
+        Returns:
+            InitStepResult with cleanup details.
+        """
+        if not collections_to_delete:
+            return InitStepResult(
+                step_name="cleanup_collections",
+                success=True,
+                message="No collections to clean up",
+            )
+
+        if dry_run:
+            collection_list = ", ".join(collections_to_delete)
+            return InitStepResult(
+                step_name="cleanup_collections",
+                success=True,
+                skipped=True,
+                message=f"Would delete {len(collections_to_delete)} collections: {collection_list}",
+            )
+
+        store = self._get_store()
+        if store is None:
+            return InitStepResult(
+                step_name="cleanup_collections",
+                success=False,
+                message="Qdrant not available",
+            )
+
+        deleted = []
+        errors = []
+
+        for collection_name in collections_to_delete:
+            try:
+                if store.collection_exists(collection_name):
+                    result = store.delete_collection(collection_name)
+                    if result.success:
+                        deleted.append(collection_name)
+                        logger.info(f"Deleted collection: {collection_name}")
+                    else:
+                        errors.append(f"{collection_name}: {result.errors}")
+                else:
+                    logger.debug(f"Collection {collection_name} does not exist")
+            except Exception as e:
+                errors.append(f"{collection_name}: {e}")
+                logger.warning(f"Failed to delete {collection_name}: {e}")
+
+        if errors:
+            return InitStepResult(
+                step_name="cleanup_collections",
+                success=False,
+                message=f"Deleted {len(deleted)} collections, {len(errors)} errors",
+                warning="; ".join(errors),
+            )
+
+        return InitStepResult(
+            step_name="cleanup_collections",
+            success=True,
+            message=f"Deleted {len(deleted)} collections",
+        )

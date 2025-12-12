@@ -1922,6 +1922,223 @@ else:
             sys.exit(1)
 
     # =========================================================================
+    # Collection Commands - Qdrant collection management
+    # =========================================================================
+
+    @cli.group()
+    def collections() -> None:
+        """Manage Qdrant collections for multi-repository isolation."""
+        pass
+
+    @collections.command("list")
+    @click.option(
+        "--filter",
+        "-f",
+        "prefix_filter",
+        help="Filter collections by prefix (e.g., 'claude')",
+    )
+    @click.option("--json", "json_output", is_flag=True, help="Output in JSON format")
+    @common_options
+    def collections_list(
+        prefix_filter: str, json_output: bool, verbose: bool, quiet: bool, config: str
+    ) -> None:
+        """List all Qdrant collections.
+
+        Examples:
+            claude-indexer collections list
+            claude-indexer collections list --filter claude
+            claude-indexer collections list --json
+        """
+        from .init.collection_manager import CollectionManager
+
+        try:
+            manager = CollectionManager()
+
+            if not manager.check_qdrant_available():
+                if json_output:
+                    click.echo('{"error": "Qdrant not available", "collections": []}')
+                else:
+                    click.echo("❌ Qdrant not available", err=True)
+                sys.exit(1)
+
+            if prefix_filter:
+                all_collections = manager.list_collections_with_prefix(prefix_filter)
+            else:
+                all_collections = manager.list_all_collections()
+
+            if json_output:
+                import json as json_module
+
+                click.echo(
+                    json_module.dumps(
+                        {"collections": all_collections, "count": len(all_collections)},
+                        indent=2,
+                    )
+                )
+            else:
+                if not all_collections:
+                    click.echo("No collections found")
+                else:
+                    click.echo(f"Found {len(all_collections)} collection(s):")
+                    for coll in sorted(all_collections):
+                        click.echo(f"  • {coll}")
+
+        except Exception as e:
+            click.echo(f"❌ Error: {e}", err=True)
+            sys.exit(1)
+
+    @collections.command("show")
+    @click.argument("name")
+    @click.option("--json", "json_output", is_flag=True, help="Output in JSON format")
+    @common_options
+    def collections_show(
+        name: str, json_output: bool, verbose: bool, quiet: bool, config: str
+    ) -> None:
+        """Show details for a specific collection.
+
+        Examples:
+            claude-indexer collections show my-collection
+            claude-indexer collections show claude_myproject_abc123 --json
+        """
+        from .init.collection_manager import CollectionManager
+
+        try:
+            manager = CollectionManager()
+            info = manager.get_collection_info(name)
+
+            if json_output:
+                import json as json_module
+
+                click.echo(json_module.dumps(info, indent=2))
+            else:
+                click.echo(f"Collection: {info['name']}")
+                click.echo(f"  Exists: {'✅' if info.get('exists') else '❌'}")
+                click.echo(
+                    f"  Qdrant available: {'✅' if info.get('qdrant_available') else '❌'}"
+                )
+                if info.get("exists"):
+                    click.echo(f"  Points: {info.get('points_count', 'N/A')}")
+                    click.echo(f"  Vectors: {info.get('vectors_count', 'N/A')}")
+
+        except Exception as e:
+            click.echo(f"❌ Error: {e}", err=True)
+            sys.exit(1)
+
+    @collections.command("delete")
+    @click.argument("name")
+    @click.option("--force", is_flag=True, help="Skip confirmation prompt")
+    @common_options
+    def collections_delete(
+        name: str, force: bool, verbose: bool, quiet: bool, config: str
+    ) -> None:
+        """Delete a collection.
+
+        Examples:
+            claude-indexer collections delete my-collection
+            claude-indexer collections delete old-project --force
+        """
+        from .init.collection_manager import CollectionManager
+
+        try:
+            manager = CollectionManager()
+
+            # Check if collection exists
+            info = manager.get_collection_info(name)
+            if not info.get("exists"):
+                click.echo(f"Collection '{name}' does not exist", err=True)
+                sys.exit(1)
+
+            # Confirm deletion unless --force
+            if not force:
+                points = info.get("points_count", "unknown")
+                click.echo(f"Collection '{name}' has {points} points.")
+                if not click.confirm("Are you sure you want to delete it?"):
+                    click.echo("Aborted")
+                    return
+
+            result = manager.delete_collection(name)
+
+            if result.success:
+                if not quiet:
+                    click.echo(f"✅ {result.message}")
+            else:
+                click.echo(f"❌ {result.message}", err=True)
+                sys.exit(1)
+
+        except Exception as e:
+            click.echo(f"❌ Error: {e}", err=True)
+            sys.exit(1)
+
+    @collections.command("cleanup")
+    @click.option("--dry-run", is_flag=True, help="Preview without deleting")
+    @click.option(
+        "--prefix", default="claude", help="Collection prefix to filter (default: claude)"
+    )
+    @click.option("--force", is_flag=True, help="Skip confirmation prompt")
+    @common_options
+    def collections_cleanup(
+        dry_run: bool, prefix: str, force: bool, verbose: bool, quiet: bool, config: str
+    ) -> None:
+        """Find and clean up stale/orphaned collections.
+
+        Collections are considered stale if they match the prefix pattern
+        but have no corresponding active project.
+
+        Examples:
+            claude-indexer collections cleanup --dry-run
+            claude-indexer collections cleanup --prefix myorg
+            claude-indexer collections cleanup --force
+        """
+        from .init.collection_manager import CollectionManager
+
+        try:
+            manager = CollectionManager()
+
+            if not manager.check_qdrant_available():
+                click.echo("❌ Qdrant not available", err=True)
+                sys.exit(1)
+
+            # Find collections with the prefix
+            collections = manager.list_collections_with_prefix(prefix)
+
+            if not collections:
+                click.echo(f"No collections found with prefix '{prefix}'")
+                return
+
+            click.echo(f"Found {len(collections)} collection(s) with prefix '{prefix}':")
+            for coll in collections:
+                info = manager.get_collection_info(coll)
+                points = info.get("points_count", "?")
+                click.echo(f"  • {coll} ({points} points)")
+
+            if dry_run:
+                click.echo("\n[Dry run] No collections were deleted")
+                return
+
+            # Confirm deletion unless --force
+            if not force:
+                if not click.confirm(
+                    f"\nDelete all {len(collections)} collection(s)?"
+                ):
+                    click.echo("Aborted")
+                    return
+
+            result = manager.cleanup_collections(collections, dry_run=False)
+
+            if result.success:
+                if not quiet:
+                    click.echo(f"✅ {result.message}")
+            else:
+                click.echo(f"❌ {result.message}", err=True)
+                if result.warning:
+                    click.echo(f"Warnings: {result.warning}", err=True)
+                sys.exit(1)
+
+        except Exception as e:
+            click.echo(f"❌ Error: {e}", err=True)
+            sys.exit(1)
+
+    # =========================================================================
     # Ignore Commands - .claudeignore management
     # =========================================================================
 
