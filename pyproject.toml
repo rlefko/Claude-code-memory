@@ -64,6 +64,7 @@ markers = [
     "e2e: End-to-end tests",
     "slow: Slow tests requiring external services",
     "asyncio: Async test marker for asyncio tests",
+    "benchmark: Performance benchmark tests",
 ]
 
 [tool.pytest_asyncio]
