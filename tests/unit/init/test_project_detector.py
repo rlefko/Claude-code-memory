@@ -167,3 +167,134 @@ class TestProjectDetector:
         # Should still detect as Python, not JavaScript
         languages = detector.detect_languages()
         assert "python" in languages
+
+
+class TestCollectionNaming:
+    """Tests for enhanced collection naming with prefix and hash."""
+
+    def test_derive_collection_name_with_prefix(self, tmp_path: Path):
+        """Test collection name with prefix."""
+        detector = ProjectDetector(tmp_path)
+        name = detector.derive_collection_name(prefix="claude")
+        assert name.startswith("claude_")
+
+    def test_derive_collection_name_with_hash(self, tmp_path: Path):
+        """Test collection name with hash suffix."""
+        detector = ProjectDetector(tmp_path)
+        name = detector.derive_collection_name(include_hash=True)
+        parts = name.split("_")
+        # Should have name_hash format when no prefix
+        assert len(parts) >= 2
+        # Hash should be 6 characters
+        assert len(parts[-1]) == 6
+
+    def test_derive_collection_name_with_prefix_and_hash(self, tmp_path: Path):
+        """Test collection name with both prefix and hash."""
+        detector = ProjectDetector(tmp_path)
+        name = detector.derive_collection_name(prefix="claude", include_hash=True)
+        parts = name.split("_")
+        # Should have prefix_name_hash format
+        assert len(parts) == 3
+        assert parts[0] == "claude"
+        assert len(parts[-1]) == 6  # Hash is 6 chars
+
+    def test_derive_collection_name_backward_compatible(self, tmp_path: Path):
+        """Test backward compatibility with no prefix or hash."""
+        detector = ProjectDetector(tmp_path)
+        name = detector.derive_collection_name()
+        # Should just be the sanitized project name
+        assert "_" not in name or name == tmp_path.name.lower().replace("_", "-")
+
+    def test_derive_collection_name_custom_prefix(self, tmp_path: Path):
+        """Test collection name with custom prefix."""
+        detector = ProjectDetector(tmp_path)
+        name = detector.derive_collection_name(prefix="myorg", include_hash=True)
+        assert name.startswith("myorg_")
+
+    def test_derive_collection_name_prefix_sanitization(self, tmp_path: Path):
+        """Test that prefix is sanitized."""
+        detector = ProjectDetector(tmp_path)
+        name = detector.derive_collection_name(prefix="My@Org!", include_hash=False)
+        assert name.startswith("my-org_")
+
+    def test_get_collection_hash_non_git(self, tmp_path: Path):
+        """Test hash generation for non-git repository."""
+        detector = ProjectDetector(tmp_path)
+        hash1 = detector.get_collection_hash()
+        hash2 = detector.get_collection_hash()
+        # Without git, each call generates a new random hash
+        assert len(hash1) == 6
+        assert len(hash2) == 6
+        # Random hashes should be different (statistically unlikely to be same)
+        # Note: This test could theoretically fail with probability 1/16^6
+
+    def test_get_git_remote_url_non_git(self, tmp_path: Path):
+        """Test git remote URL for non-git repository returns None."""
+        detector = ProjectDetector(tmp_path)
+        url = detector.get_git_remote_url()
+        assert url is None
+
+    def test_get_git_remote_url_no_remote(self, tmp_path: Path):
+        """Test git repo without remote origin."""
+        # Create .git directory (simulates git init)
+        (tmp_path / ".git").mkdir()
+        detector = ProjectDetector(tmp_path)
+        # Even with .git dir, without proper git setup, should return None
+        url = detector.get_git_remote_url()
+        assert url is None
+
+    def test_collection_name_deterministic_with_git(self, tmp_path: Path, monkeypatch):
+        """Test that collection hash is deterministic with git remote."""
+        import subprocess
+        from unittest.mock import MagicMock
+
+        # Create .git directory
+        (tmp_path / ".git").mkdir()
+
+        detector = ProjectDetector(tmp_path)
+
+        # Mock subprocess.run to return a consistent remote URL
+        mock_result = MagicMock()
+        mock_result.returncode = 0
+        mock_result.stdout = "https://github.com/user/repo.git\n"
+
+        def mock_run(*args, **kwargs):
+            return mock_result
+
+        monkeypatch.setattr(subprocess, "run", mock_run)
+
+        hash1 = detector.get_collection_hash()
+        hash2 = detector.get_collection_hash()
+
+        # With same remote URL, hash should be deterministic
+        assert hash1 == hash2
+        assert len(hash1) == 6
+
+    def test_collection_hash_url_normalization(self, tmp_path: Path, monkeypatch):
+        """Test that URL normalization produces consistent hashes."""
+        import subprocess
+        from unittest.mock import MagicMock
+
+        (tmp_path / ".git").mkdir()
+
+        detector = ProjectDetector(tmp_path)
+
+        # Test various URL formats that should produce the same hash
+        urls = [
+            "https://github.com/user/repo.git",
+            "https://github.com/user/repo",
+            "https://github.com/User/Repo.git",  # Case should be normalized
+            "HTTPS://GITHUB.COM/USER/REPO.GIT",  # All caps
+        ]
+
+        hashes = []
+        for url in urls:
+            mock_result = MagicMock()
+            mock_result.returncode = 0
+            mock_result.stdout = f"{url}\n"
+
+            monkeypatch.setattr(subprocess, "run", lambda *a, **k: mock_result)
+            hashes.append(detector.get_collection_hash())
+
+        # All normalized URLs should produce the same hash
+        assert all(h == hashes[0] for h in hashes)

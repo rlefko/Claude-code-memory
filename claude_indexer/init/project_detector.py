@@ -1,7 +1,10 @@
 """Enhanced project type detection for initialization."""
 
+import hashlib
 import json
 import re
+import secrets
+import subprocess
 from pathlib import Path
 from typing import List, Optional, Set
 
@@ -162,14 +165,22 @@ class ProjectDetector:
 
         return sorted(languages)
 
-    def derive_collection_name(self, custom_name: Optional[str] = None) -> str:
+    def derive_collection_name(
+        self,
+        custom_name: Optional[str] = None,
+        prefix: Optional[str] = None,
+        include_hash: bool = False,
+    ) -> str:
         """Derive collection name from project directory name.
 
         Args:
             custom_name: Optional custom name to use instead of deriving.
+            prefix: Optional prefix for multi-tenancy (e.g., "claude").
+            include_hash: If True, append 6-char uniqueness hash.
 
         Returns:
             Sanitized collection name suitable for Qdrant.
+            Format: {prefix}_{name}_{hash} or just {name} depending on args.
         """
         if custom_name:
             name = custom_name
@@ -186,12 +197,70 @@ class ProjectDetector:
         if not name:
             name = "project"
 
-        return name
+        # Build final collection name
+        parts = []
+        if prefix:
+            # Sanitize prefix the same way
+            prefix = prefix.lower()
+            prefix = re.sub(r"[^a-z0-9-]", "-", prefix)
+            prefix = re.sub(r"-+", "-", prefix).strip("-")
+            if prefix:
+                parts.append(prefix)
+
+        parts.append(name)
+
+        if include_hash:
+            hash_suffix = self.get_collection_hash()
+            parts.append(hash_suffix)
+
+        # Use underscore as separator for readability
+        return "_".join(parts)
 
     def is_git_repository(self) -> bool:
         """Check if project is a git repository."""
         git_dir = self.project_path / ".git"
         return git_dir.exists() and git_dir.is_dir()
+
+    def get_git_remote_url(self) -> Optional[str]:
+        """Get the git remote origin URL.
+
+        Returns:
+            Remote URL string or None if not available.
+        """
+        if not self.is_git_repository():
+            return None
+
+        try:
+            result = subprocess.run(
+                ["git", "remote", "get-url", "origin"],
+                cwd=self.project_path,
+                capture_output=True,
+                text=True,
+                timeout=5,
+            )
+            if result.returncode == 0:
+                return result.stdout.strip()
+        except (subprocess.TimeoutExpired, FileNotFoundError, Exception) as e:
+            logger.debug(f"Could not get git remote URL: {e}")
+        return None
+
+    def get_collection_hash(self) -> str:
+        """Get 6-char hash for collection uniqueness.
+
+        Uses git remote URL hash if available, otherwise generates random.
+
+        Returns:
+            6-character hexadecimal string.
+        """
+        remote_url = self.get_git_remote_url()
+        if remote_url:
+            # Normalize URL (remove .git suffix, normalize case for github)
+            normalized = remote_url.lower().rstrip("/")
+            if normalized.endswith(".git"):
+                normalized = normalized[:-4]
+            return hashlib.sha256(normalized.encode()).hexdigest()[:6]
+        # Fallback to random hash for non-git repos
+        return secrets.token_hex(3)
 
     def get_project_name(self) -> str:
         """Get the project name (directory name)."""

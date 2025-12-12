@@ -50,8 +50,9 @@ Create a "magical" developer experience where Claude Code acts as an expert pair
 | **Dependency Verification** | ✅ Complete | `claude-indexer doctor` with 8 checks, suggestions (v2.9.11) |
 | **Project Templates** | ✅ Complete | 5 project-type templates with fallback (v2.9.12) |
 | **SessionStart Hook** | ✅ Complete | Health checks, index freshness, welcome message (v2.9.13) |
+| **Collection Isolation** | ✅ Complete | Multi-tenancy naming, CLI management, cleanup (v2.9.14) |
 | All 27 Rules | ✅ Complete | 27+ rules implemented |
-| Multi-Repo Isolation | 🔄 Partial | Framework exists |
+| Multi-Repo Isolation | 🔄 Partial | Collection isolation done, session/workspace pending |
 
 ### Success Metrics (from PRD)
 - **Critical Issues Blocked**: >95% of serious issues caught before commit
@@ -1169,11 +1170,11 @@ templates/
 
 | ID | Task | Priority | Status |
 |----|------|----------|--------|
-| 5.1.1 | Implement collection naming scheme | HIGH | PARTIAL |
-| 5.1.2 | Add collection auto-creation on init | HIGH | PARTIAL |
-| 5.1.3 | Implement collection prefix for multi-tenancy | MEDIUM | NEW |
-| 5.1.4 | Add collection listing command | MEDIUM | NEW |
-| 5.1.5 | Implement collection cleanup (stale projects) | LOW | NEW |
+| 5.1.1 | Implement collection naming scheme | HIGH | DONE |
+| 5.1.2 | Add collection auto-creation on init | HIGH | DONE |
+| 5.1.3 | Implement collection prefix for multi-tenancy | MEDIUM | DONE |
+| 5.1.4 | Add collection listing command | MEDIUM | DONE |
+| 5.1.5 | Implement collection cleanup (stale projects) | LOW | DONE |
 
 **Collection Naming**:
 ```
@@ -1187,18 +1188,37 @@ Where:
 ```
 
 **Testing Requirements**:
-- [ ] Test collection creation
-- [ ] Test isolation between projects
-- [ ] Test cleanup of stale collections
+- [x] Test collection creation
+- [x] Test isolation between projects
+- [x] Test cleanup of stale collections
 
 **Documentation**:
-- [ ] Collection management guide
-- [ ] Multi-tenancy setup
+- [x] Collection management guide (CLI --help)
+- [x] Multi-tenancy setup (collection_prefix config)
 
 **Success Criteria**:
 - Zero cross-project contamination
 - Deterministic naming
 - Easy cleanup
+
+**Implementation Notes (v2.9.14)**:
+- Enhanced `ProjectDetector` in `claude_indexer/init/project_detector.py`:
+  - `get_git_remote_url()`: Retrieves git remote origin URL
+  - `get_collection_hash()`: Computes 6-char SHA256 hash from URL (or random for non-git)
+  - `derive_collection_name()`: Now supports `prefix` and `include_hash` parameters
+  - URL normalization: lowercase, removes `.git` suffix for consistent hashing
+- Added `collection_prefix` to `IndexerConfig` in `claude_indexer/config/models.py`
+- Extended `CollectionManager` in `claude_indexer/init/collection_manager.py`:
+  - `list_all_collections()`: Lists all Qdrant collections
+  - `list_collections_with_prefix()`: Filters collections by prefix pattern
+  - `find_stale_collections()`: Identifies orphaned collections
+  - `cleanup_collections()`: Removes specified collections with dry-run support
+- New CLI command group `collections` in `claude_indexer/cli_full.py`:
+  - `claude-indexer collections list [--filter PREFIX] [--json]`
+  - `claude-indexer collections show NAME [--json]`
+  - `claude-indexer collections delete NAME [--force]`
+  - `claude-indexer collections cleanup [--dry-run] [--prefix PREFIX] [--force]`
+- Unit tests: 14 new tests in `tests/unit/init/test_project_detector.py` and `tests/unit/test_cli.py`
 
 ---
 

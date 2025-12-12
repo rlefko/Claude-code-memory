@@ -24,6 +24,7 @@ class IndexerConfig(BaseModel):
 
     # Collection Management
     collection_name: str = Field(default="default")
+    collection_prefix: str = Field(default="claude")  # Multi-tenancy prefix
 
     # Component Types
     embedder_type: str = Field(default="openai")
