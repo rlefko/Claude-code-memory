@@ -1,5 +1,6 @@
 """Click-based CLI interface for the Claude Code indexer."""
 
+import json
 import subprocess
 import sys
 from pathlib import Path
