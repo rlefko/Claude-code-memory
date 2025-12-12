@@ -52,8 +52,9 @@ Create a "magical" developer experience where Claude Code acts as an expert pair
 | **SessionStart Hook** | ✅ Complete | Health checks, index freshness, welcome message (v2.9.13) |
 | **Collection Isolation** | ✅ Complete | Multi-tenancy naming, CLI management, cleanup (v2.9.14) |
 | **Session Isolation** | ✅ Complete | Session-scoped config, CWD detection, file locking (v2.9.15) |
+| **Workspace Support** | ✅ Complete | Monorepo + VS Code multi-root detection, per-folder config (v2.9.16) |
 | All 27 Rules | ✅ Complete | 27+ rules implemented |
-| Multi-Repo Isolation | 🔄 Partial | Collection + session isolation done, workspace pending |
+| Multi-Repo Isolation | ✅ Complete | Collection + session + workspace isolation complete |
 
 ### Success Metrics (from PRD)
 - **Critical Issues Blocked**: >95% of serious issues caught before commit
@@ -1295,24 +1296,49 @@ Session A (Project X)          Session B (Project Y)
 
 | ID | Task | Priority | Status |
 |----|------|----------|--------|
-| 5.3.1 | Detect multi-root workspace | MEDIUM | NEW |
-| 5.3.2 | Implement per-folder configuration | MEDIUM | NEW |
-| 5.3.3 | Add monorepo support (single collection, multiple paths) | MEDIUM | NEW |
-| 5.3.4 | Implement workspace-level settings | LOW | NEW |
+| 5.3.1 | Detect multi-root workspace | MEDIUM | DONE |
+| 5.3.2 | Implement per-folder configuration | MEDIUM | DONE |
+| 5.3.3 | Add monorepo support (single collection, multiple paths) | MEDIUM | DONE |
+| 5.3.4 | Implement workspace-level settings | LOW | DONE |
 
 **Testing Requirements**:
-- [ ] Test with VS Code workspace
-- [ ] Test monorepo indexing
-- [ ] Test per-folder rules
+- [x] Test with VS Code workspace
+- [x] Test monorepo indexing
+- [x] Test per-folder rules
 
 **Documentation**:
-- [ ] Workspace setup guide
-- [ ] Monorepo best practices
+- [x] Workspace setup guide (CLI --help)
+- [x] Monorepo best practices (collection strategy docs)
 
 **Success Criteria**:
-- Multi-root workspaces work seamlessly
-- Monorepo support for large projects
-- Clear per-folder configuration
+- [x] Multi-root workspaces work seamlessly
+- [x] Monorepo support for large projects
+- [x] Clear per-folder configuration
+
+**Implementation Notes (v2.9.16)**:
+- Created `claude_indexer/workspace/` package with modular components:
+  - `types.py`: WorkspaceType enum (8 types), CollectionStrategy, WorkspaceMember, WorkspaceConfig
+  - `detector.py`: WorkspaceDetector with priority-based marker detection
+  - `config.py`: WorkspaceConfigLoader for hierarchical config merging
+  - `context.py`: WorkspaceContext for session state tracking
+  - `manager.py`: WorkspaceManager orchestrator with convenience functions
+- Workspace type detection priority:
+  1. VS Code multi-root (*.code-workspace) → MULTIPLE collections
+  2. pnpm (pnpm-workspace.yaml) → SINGLE collection
+  3. Nx (nx.json) → SINGLE collection
+  4. Lerna (lerna.json) → SINGLE collection
+  5. Turborepo (turbo.json) → SINGLE collection
+  6. npm/yarn workspaces (package.json) → SINGLE collection
+- Collection strategy rationale:
+  - Monorepos → SINGLE collection (cross-package semantic search)
+  - VS Code multi-root → MULTIPLE collections (folders often unrelated)
+- New CLI command group `workspace` in `claude_indexer/cli_full.py`:
+  - `claude-indexer workspace detect [-p PATH] [--json]`
+  - `claude-indexer workspace init [-p PATH] [--strategy]`
+  - `claude-indexer workspace status [-p PATH] [--json]`
+  - `claude-indexer workspace clear [-p PATH]`
+- Session state persistence in `.claude-indexer/workspace.json`
+- Unit tests: 87 tests in `tests/unit/workspace/` (all passing)
 
 ---
 

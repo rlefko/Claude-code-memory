@@ -2265,6 +2265,290 @@ else:
             sys.exit(1)
 
     # =========================================================================
+    # Workspace Commands - Multi-root workspace and monorepo support (Milestone 5.3)
+    # =========================================================================
+
+    @cli.group()
+    def workspace() -> None:
+        """Workspace management for multi-root workspaces and monorepos.
+
+        Detects and manages VS Code workspaces, pnpm/npm/yarn workspaces,
+        Lerna, Nx, and Turborepo monorepos.
+        """
+        pass
+
+    @workspace.command("detect")
+    @click.option(
+        "-p",
+        "--path",
+        type=click.Path(exists=True),
+        help="Path to check (default: current directory)",
+    )
+    @click.option("--json", "json_output", is_flag=True, help="Output as JSON")
+    @common_options
+    def workspace_detect(
+        path: str, json_output: bool, verbose: bool, quiet: bool, config: str
+    ) -> None:
+        """Detect workspace type and list members.
+
+        Scans for workspace markers (pnpm-workspace.yaml, lerna.json,
+        nx.json, *.code-workspace, etc.) and reports the workspace
+        structure.
+
+        Examples:
+            claude-indexer workspace detect
+            claude-indexer workspace detect -p /path/to/monorepo
+            claude-indexer workspace detect --json
+        """
+        import json as json_module
+        from .workspace import WorkspaceDetector, WorkspaceType
+
+        try:
+            start_path = Path(path) if path else None
+            ws_config = WorkspaceDetector.detect(start_path)
+
+            if json_output:
+                output = {
+                    "type": ws_config.workspace_type.value,
+                    "root": str(ws_config.root_path),
+                    "strategy": ws_config.collection_strategy.value,
+                    "collection_name": ws_config.collection_name,
+                    "members": [
+                        {
+                            "name": m.name,
+                            "path": str(m.path),
+                            "relative_path": m.relative_path,
+                        }
+                        for m in ws_config.members
+                    ],
+                    "workspace_file": str(ws_config.workspace_file)
+                    if ws_config.workspace_file
+                    else None,
+                }
+                click.echo(json_module.dumps(output, indent=2))
+            else:
+                if ws_config.workspace_type == WorkspaceType.NONE:
+                    click.echo("No workspace detected (single project mode)")
+                    if verbose:
+                        click.echo(f"  Path: {ws_config.root_path}")
+                else:
+                    click.echo(f"Workspace Type: {ws_config.workspace_type.value}")
+                    click.echo(f"Root: {ws_config.root_path}")
+                    click.echo(f"Collection Strategy: {ws_config.collection_strategy.value}")
+                    if ws_config.workspace_file:
+                        click.echo(f"Config File: {ws_config.workspace_file}")
+                    click.echo(f"\nMembers ({len(ws_config.members)}):")
+                    for m in ws_config.members:
+                        click.echo(f"  - {m.name}")
+                        if verbose:
+                            click.echo(f"      Path: {m.path}")
+                            click.echo(f"      Relative: {m.relative_path}")
+
+        except Exception as e:
+            click.echo(f"❌ Error: {e}", err=True)
+            if verbose:
+                import traceback
+                traceback.print_exc()
+            sys.exit(1)
+
+    @workspace.command("init")
+    @click.option(
+        "-p",
+        "--path",
+        type=click.Path(exists=True),
+        help="Workspace path (default: current directory)",
+    )
+    @click.option(
+        "--strategy",
+        type=click.Choice(["single", "multiple"]),
+        help="Override collection strategy (single=unified, multiple=isolated)",
+    )
+    @click.option("--force", is_flag=True, help="Overwrite existing configuration")
+    @common_options
+    def workspace_init(
+        path: str,
+        strategy: str,
+        force: bool,
+        verbose: bool,
+        quiet: bool,
+        config: str,
+    ) -> None:
+        """Initialize workspace configuration.
+
+        Creates workspace.config.json with detected workspace information
+        and collection settings.
+
+        Examples:
+            claude-indexer workspace init
+            claude-indexer workspace init --strategy single
+            claude-indexer workspace init -p /path/to/monorepo
+        """
+        from .workspace import WorkspaceManager, WorkspaceType
+
+        try:
+            ws_path = Path(path) if path else None
+            manager = WorkspaceManager(workspace_path=ws_path)
+
+            if not manager.is_workspace():
+                click.echo(
+                    "No workspace detected. Use 'claude-indexer init' for single projects."
+                )
+                sys.exit(1)
+
+            # Check for existing config
+            state_dir = manager._get_state_dir()
+            config_file = state_dir / "workspace.config.json"
+            if config_file.exists() and not force:
+                click.echo(f"Workspace config already exists: {config_file}")
+                click.echo("Use --force to overwrite.")
+                sys.exit(1)
+
+            context = manager.initialize()
+
+            # Create config file
+            config_path = manager.create_workspace_config()
+
+            if not quiet:
+                click.echo(
+                    f"✅ Initialized {context.workspace_config.workspace_type.value} workspace"
+                )
+                click.echo(f"   Root: {context.root_path}")
+                click.echo(f"   Members: {len(context.members)}")
+                click.echo(f"   Strategy: {context.workspace_config.collection_strategy.value}")
+                click.echo(f"   Config: {config_path}")
+
+                if verbose:
+                    click.echo("\nCollections:")
+                    for name, collection in context.member_collections.items():
+                        click.echo(f"   {name} -> {collection}")
+
+        except Exception as e:
+            click.echo(f"❌ Error: {e}", err=True)
+            if verbose:
+                import traceback
+                traceback.print_exc()
+            sys.exit(1)
+
+    @workspace.command("status")
+    @click.option(
+        "-p",
+        "--path",
+        type=click.Path(exists=True),
+        help="Workspace path (default: current directory)",
+    )
+    @click.option("--json", "json_output", is_flag=True, help="Output as JSON")
+    @common_options
+    def workspace_status(
+        path: str, json_output: bool, verbose: bool, quiet: bool, config: str
+    ) -> None:
+        """Show workspace status and member details.
+
+        Displays current workspace session information, including
+        workspace type, members, and collection assignments.
+
+        Examples:
+            claude-indexer workspace status
+            claude-indexer workspace status --json
+            claude-indexer workspace status -p /path/to/monorepo
+        """
+        import json as json_module
+        from .workspace import WorkspaceManager, WorkspaceType
+
+        try:
+            ws_path = Path(path) if path else None
+            manager = WorkspaceManager(workspace_path=ws_path)
+
+            if not manager.is_workspace():
+                if json_output:
+                    click.echo(json_module.dumps({"workspace": False}))
+                else:
+                    click.echo("Not in a workspace (single project mode)")
+                sys.exit(0)
+
+            context = manager.initialize()
+
+            if json_output:
+                click.echo(json_module.dumps(context.to_dict(), indent=2))
+            else:
+                click.echo(f"Workspace ID: {context.workspace_id}")
+                click.echo(f"Type: {context.workspace_config.workspace_type.value}")
+                click.echo(f"Root: {context.root_path}")
+                click.echo(
+                    f"Strategy: {context.workspace_config.collection_strategy.value}"
+                )
+                if context.is_monorepo:
+                    click.echo(f"Collection: {context.workspace_config.collection_name}")
+                click.echo(f"\nMembers ({len(context.members)}):")
+                for m in context.members:
+                    collection = context.member_collections.get(m.name, "unknown")
+                    click.echo(f"  {m.name}")
+                    click.echo(f"    Path: {m.path}")
+                    if not context.is_monorepo:
+                        click.echo(f"    Collection: {collection}")
+                if context.active_member:
+                    click.echo(f"\nActive Member: {context.active_member.name}")
+
+        except Exception as e:
+            click.echo(f"❌ Error: {e}", err=True)
+            if verbose:
+                import traceback
+                traceback.print_exc()
+            sys.exit(1)
+
+    @workspace.command("clear")
+    @click.option(
+        "-p",
+        "--path",
+        type=click.Path(exists=True),
+        help="Workspace path (default: current directory)",
+    )
+    @click.option("--force", is_flag=True, help="Skip confirmation")
+    @common_options
+    def workspace_clear(
+        path: str, force: bool, verbose: bool, quiet: bool, config: str
+    ) -> None:
+        """Clear workspace session state.
+
+        Removes the workspace session file, allowing a fresh start
+        on next workspace command.
+
+        Examples:
+            claude-indexer workspace clear
+            claude-indexer workspace clear --force
+        """
+        from .workspace import WorkspaceManager
+
+        try:
+            ws_path = Path(path) if path else None
+            manager = WorkspaceManager(workspace_path=ws_path)
+
+            if not manager.is_workspace():
+                click.echo("Not in a workspace.")
+                sys.exit(0)
+
+            state_file = manager._get_state_file()
+            if not state_file.exists():
+                if not quiet:
+                    click.echo("No workspace session to clear.")
+                sys.exit(0)
+
+            if not force:
+                if not click.confirm("Clear workspace session state?"):
+                    click.echo("Aborted.")
+                    sys.exit(0)
+
+            if manager.clear_session():
+                if not quiet:
+                    click.echo("✅ Workspace session cleared.")
+            else:
+                click.echo("Failed to clear workspace session.", err=True)
+                sys.exit(1)
+
+        except Exception as e:
+            click.echo(f"❌ Error: {e}", err=True)
+            sys.exit(1)
+
+    # =========================================================================
     # Ignore Commands - .claudeignore management
     # =========================================================================
 
