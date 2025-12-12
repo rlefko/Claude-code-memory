@@ -138,8 +138,12 @@ class TestHierarchicalConfigLoader:
         assert config.embedding.provider == "openai"
         assert config.logging.debug is True
 
-    def test_load_from_legacy_settings_txt(self, tmp_path):
+    def test_load_from_legacy_settings_txt(self, tmp_path, monkeypatch):
         """Test loading from legacy settings.txt."""
+        # Clear environment variables that might override settings.txt
+        for var in ["OPENAI_API_KEY", "VOYAGE_API_KEY", "QDRANT_URL", "QDRANT_API_KEY"]:
+            monkeypatch.delenv(var, raising=False)
+
         settings_file = tmp_path / "settings.txt"
         settings_file.write_text(
             """
@@ -423,8 +427,12 @@ class TestValueConversion:
 class TestLegacyMappings:
     """Tests for legacy settings.txt key mappings."""
 
-    def test_all_legacy_mappings(self, tmp_path):
+    def test_all_legacy_mappings(self, tmp_path, monkeypatch):
         """Test that all legacy mappings work correctly."""
+        # Clear environment variables that might override settings.txt
+        for var in ["OPENAI_API_KEY", "VOYAGE_API_KEY", "QDRANT_URL", "QDRANT_API_KEY"]:
+            monkeypatch.delenv(var, raising=False)
+
         settings_content = """
 openai_api_key=sk-openai
 voyage_api_key=va-voyage
