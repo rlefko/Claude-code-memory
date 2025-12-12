@@ -89,8 +89,8 @@ include_tests=false
 max_file_size=1048576
 
 # Performance Settings
-batch_size=50
-max_concurrent_files=10
+batch_size=100
+max_concurrent_files=5
 """
 
     try:

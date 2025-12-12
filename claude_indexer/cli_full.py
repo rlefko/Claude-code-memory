@@ -2116,7 +2116,7 @@ else:
     @click.option("--json", "json_output", is_flag=True, help="Output in JSON format")
     @common_options
     def collections_list(
-        prefix_filter: str, json_output: bool, verbose: bool, quiet: bool, config: str
+        prefix_filter: str, json_output: bool, verbose: bool, quiet: bool, no_color: bool, config: str
     ) -> None:
         """List all Qdrant collections.
 
@@ -2168,7 +2168,7 @@ else:
     @click.option("--json", "json_output", is_flag=True, help="Output in JSON format")
     @common_options
     def collections_show(
-        name: str, json_output: bool, verbose: bool, quiet: bool, config: str
+        name: str, json_output: bool, verbose: bool, quiet: bool, no_color: bool, config: str
     ) -> None:
         """Show details for a specific collection.
 
@@ -2205,7 +2205,7 @@ else:
     @click.option("--force", is_flag=True, help="Skip confirmation prompt")
     @common_options
     def collections_delete(
-        name: str, force: bool, verbose: bool, quiet: bool, config: str
+        name: str, force: bool, verbose: bool, quiet: bool, no_color: bool, config: str
     ) -> None:
         """Delete a collection.
 
@@ -2255,7 +2255,7 @@ else:
     @click.option("--force", is_flag=True, help="Skip confirmation prompt")
     @common_options
     def collections_cleanup(
-        dry_run: bool, prefix: str, force: bool, verbose: bool, quiet: bool, config: str
+        dry_run: bool, prefix: str, force: bool, verbose: bool, quiet: bool, no_color: bool, config: str
     ) -> None:
         """Find and clean up stale/orphaned collections.
 

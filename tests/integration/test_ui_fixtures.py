@@ -90,7 +90,7 @@ def style_normalizer() -> StyleNormalizer:
 @pytest.fixture
 def rule_engine(
     ui_config: UIQualityConfig, token_resolver: TokenResolver
-) -> RuleEngine:
+) -> "RuleEngine":
     """Create a rule engine with all rules enabled."""
     return RuleEngine(config=ui_config, token_resolver=token_resolver)
 

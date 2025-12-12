@@ -64,7 +64,7 @@ def component_normalizer() -> ComponentNormalizer:
 
 
 @pytest.fixture
-def similarity_engine() -> SimilarityEngine:
+def similarity_engine() -> "SimilarityEngine":
     """Create a similarity engine for testing."""
     return SimilarityEngine(
         semantic_weight=0.5,
@@ -184,7 +184,7 @@ class TestCrossFrameworkSimilarityScoring:
         fixture_path: Path,
         source_collector: SourceCollector,
         component_normalizer: ComponentNormalizer,
-        similarity_engine: SimilarityEngine,
+        similarity_engine: "SimilarityEngine",
     ):
         """React Button and Vue Button should have high similarity score."""
         react_button = fixture_path / "components" / "Button.tsx"
@@ -212,7 +212,7 @@ class TestCrossFrameworkSimilarityScoring:
         fixture_path: Path,
         source_collector: SourceCollector,
         component_normalizer: ComponentNormalizer,
-        similarity_engine: SimilarityEngine,
+        similarity_engine: "SimilarityEngine",
     ):
         """React Card and Vue Card should have high similarity score."""
         react_card = fixture_path / "components" / "Card.tsx"
@@ -237,7 +237,7 @@ class TestCrossFrameworkSimilarityScoring:
         fixture_path: Path,
         source_collector: SourceCollector,
         component_normalizer: ComponentNormalizer,
-        similarity_engine: SimilarityEngine,
+        similarity_engine: "SimilarityEngine",
     ):
         """Button and Card should have LOW similarity score."""
         button = fixture_path / "components" / "Button.tsx"
@@ -336,7 +336,7 @@ class TestCrossFrameworkRecommendations:
         fixture_path: Path,
         source_collector: SourceCollector,
         component_normalizer: ComponentNormalizer,
-        similarity_engine: SimilarityEngine,
+        similarity_engine: "SimilarityEngine",
     ):
         """When analyzing ButtonVariant, should recommend using Button.tsx."""
         canonical_button = fixture_path / "components" / "Button.tsx"
@@ -366,7 +366,7 @@ class TestCrossFrameworkRecommendations:
         fixture_path: Path,
         source_collector: SourceCollector,
         component_normalizer: ComponentNormalizer,
-        similarity_engine: SimilarityEngine,
+        similarity_engine: "SimilarityEngine",
     ):
         """Should recommend consolidating React and Vue buttons."""
         react_button = fixture_path / "components" / "Button.tsx"
