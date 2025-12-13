@@ -56,21 +56,21 @@ class TestDeleteEventHandling:
         err = f"At least 3 points expected, got {initial_count}"
         assert initial_count >= 3, err
 
-        # Verify we can find content from foo.py with retry
+        # Verify we can find content from foo.py using payload query (deterministic)
         from tests.conftest import (
+            get_entities_by_file_path,
             get_file_path_from_payload,
-            verify_entity_searchable,
+            verify_entities_exist_by_path,
         )
 
-        # Use Calculator which is a unique entity name in foo.py
-        found = verify_entity_searchable(
+        # Verify foo.py entities exist using payload query
+        found = verify_entities_exist_by_path(
             qdrant_store,
-            dummy_embedder,
             collection_name,
-            "Calculator",  # Search for Calculator class in foo.py
+            "foo.py",
+            min_expected=1,
             timeout=15.0,
             verbose=True,
-            expected_count=1,
         )
         assert found, "Should find entities from foo.py initially"
 
@@ -88,45 +88,31 @@ class TestDeleteEventHandling:
         ), "Vector count should decrease after file deletion"
 
         # Wait for eventual consistency and verify entities from deleted file are gone
-        from tests.conftest import wait_for_eventual_consistency
+        # Use payload query for deterministic verification
+        # Note: We need to filter out test_foo.py which also matches "foo.py"
+        import time
 
-        def search_foo_entities():
-            # Try multiple search terms that should match foo.py entities
-            search_terms = ["Calculator", "add", "multiply", "foo.py"]
-            all_foo_hits = []
+        max_wait = 15.0
+        start_time = time.time()
+        foo_only = []
 
-            for term in search_terms:
-                search_embedding = dummy_embedder.embed_single(term)
-                hits = qdrant_store.search(collection_name, search_embedding, top_k=20)
-                foo_hits = [
-                    hit
-                    for hit in hits
-                    if (
-                        get_file_path_from_payload(hit.payload).endswith("foo.py")
-                        and not get_file_path_from_payload(hit.payload).endswith(
-                            "test_foo.py"
-                        )
-                    )
-                ]
-                all_foo_hits.extend(foo_hits)
+        while time.time() - start_time < max_wait:
+            foo_entities = get_entities_by_file_path(
+                qdrant_store, collection_name, "foo.py", verbose=False
+            )
+            # Filter out test_foo.py entities (only check for exact foo.py)
+            foo_only = [
+                e
+                for e in foo_entities
+                if get_file_path_from_payload(e.payload).endswith("/foo.py")
+            ]
+            if len(foo_only) == 0:
+                break
+            time.sleep(0.5)
 
-            # Remove duplicates by ID
-            unique_foo_hits = []
-            seen_ids = set()
-            for hit in all_foo_hits:
-                hit_id = getattr(hit, "id", None)
-                if hit_id not in seen_ids:
-                    unique_foo_hits.append(hit)
-                    seen_ids.add(hit_id)
-
-            return unique_foo_hits
-
-        consistency_achieved = wait_for_eventual_consistency(
-            search_foo_entities, expected_count=0, timeout=15.0, verbose=True
-        )
         assert (
-            consistency_achieved
-        ), "Eventual consistency timeout: foo.py entities should be deleted"
+            len(foo_only) == 0
+        ), f"foo.py entities should be deleted, but found {len(foo_only)} remaining"
 
     def test_multiple_file_deletion(self, temp_repo, dummy_embedder, qdrant_store):
         """Test cleanup when multiple files are deleted."""
@@ -165,21 +151,24 @@ def extra_function_{i}():
 
         initial_count = qdrant_store.count(collection_name)
 
-        # Verify extra files are indexed with eventual consistency
-        from tests.conftest import verify_entity_searchable
+        # Verify extra files are indexed using payload query (deterministic)
+        from tests.conftest import (
+            get_entities_by_file_path,
+            verify_entities_exist_by_path,
+        )
 
         for i in range(3):
-            entity_found = verify_entity_searchable(
+            entity_found = verify_entities_exist_by_path(
                 qdrant_store,
-                dummy_embedder,
                 collection_name,
-                f"extra_function_{i}",
+                f"extra_{i}.py",
+                min_expected=1,
                 timeout=10.0,
                 verbose=True,
             )
             assert (
                 entity_found
-            ), f"extra_function_{i} should be found initially after indexing"
+            ), f"extra_{i}.py should be found initially after indexing"
 
         # Delete all extra files
         for extra_file in extra_files:
@@ -194,26 +183,17 @@ def extra_function_{i}():
             final_count < initial_count
         ), "Count should decrease after multiple deletions"
 
-        # Wait for eventual consistency and verify all extra functions are gone
-        from tests.conftest import wait_for_eventual_consistency
-
+        # Verify all extra files are deleted using payload query
         for i in range(3):
-
-            def search_extra_function(idx=i):  # Bind loop var to default arg
-                search_embedding = dummy_embedder.embed_single(f"extra_function_{idx}")
-                hits = qdrant_store.search(collection_name, search_embedding, top_k=5)
-                return [
-                    hit
-                    for hit in hits
-                    if f"extra_function_{idx}" in hit.payload.get("name", "")
-                ]
-
-            consistency_achieved = wait_for_eventual_consistency(
-                search_extra_function, expected_count=0, timeout=10.0, verbose=True
+            deleted = verify_entities_exist_by_path(
+                qdrant_store,
+                collection_name,
+                f"extra_{i}.py",
+                min_expected=0,
+                timeout=10.0,
+                verbose=True,
             )
-            assert (
-                consistency_achieved
-            ), f"Eventual consistency timeout: extra_function_{i} should be deleted"
+            assert deleted, f"extra_{i}.py entities should be deleted"
 
     def test_directory_deletion_cleanup(self, temp_repo, dummy_embedder, qdrant_store):
         """Test cleanup when an entire directory is deleted."""
@@ -334,19 +314,22 @@ class SubClass_{i}:
         result1 = indexer.index_project(collection_name)
         assert result1.success
 
-        # Verify existing files are indexed with eventual consistency
-        from tests.conftest import verify_entity_searchable
+        # Verify foo.py is indexed using payload query (deterministic)
+        from tests.conftest import (
+            get_entities_by_file_path,
+            get_file_path_from_payload,
+            verify_entities_exist_by_path,
+        )
 
-        calc_found = verify_entity_searchable(
+        calc_found = verify_entities_exist_by_path(
             qdrant_store,
-            dummy_embedder,
             collection_name,
-            "Calculator",
+            "foo.py",
+            min_expected=1,
             timeout=10.0,
             verbose=True,
-            expected_count=1,
         )
-        assert calc_found, "Calculator class should be found before deletion"
+        assert calc_found, "foo.py should be found before deletion"
 
         # Delete bar.py but keep foo.py
         (temp_repo / "bar.py").unlink()
@@ -355,41 +338,30 @@ class SubClass_{i}:
         result2 = indexer.index_project(collection_name)
         assert result2.success
 
-        # Verify that foo.py entities are still present - search for add function instead of Calculator
-        from tests.conftest import get_file_path_from_payload
-
-        search_embedding = dummy_embedder.embed_single("add")
-        hits = qdrant_store.search(collection_name, search_embedding, top_k=10)
-
-        # Look for entities that are from foo.py (should remain after bar.py deletion)
-        foo_entities_after = [
-            hit
-            for hit in hits
-            if get_file_path_from_payload(hit.payload).endswith("foo.py")
-            and hit.payload.get("entity_name") in ["add", "Calculator"]
+        # Verify that foo.py entities are still present using payload query
+        foo_entities_after = get_entities_by_file_path(
+            qdrant_store, collection_name, "foo.py", verbose=True
+        )
+        # Filter out test_foo.py
+        foo_only = [
+            e
+            for e in foo_entities_after
+            if not get_file_path_from_payload(e.payload).endswith("test_foo.py")
         ]
         assert (
-            len(foo_entities_after) > 0
+            len(foo_only) > 0
         ), "foo.py entities should still be found after bar.py deletion"
 
-        # Wait for eventual consistency and verify bar.py entities are gone
-        from tests.conftest import wait_for_eventual_consistency
-
-        def search_bar_entities():
-            search_embedding = dummy_embedder.embed_single("main")
-            hits = qdrant_store.search(collection_name, search_embedding, top_k=10)
-            return [
-                hit
-                for hit in hits
-                if "bar.py" in get_file_path_from_payload(hit.payload)
-            ]
-
-        consistency_achieved = wait_for_eventual_consistency(
-            search_bar_entities, expected_count=0, timeout=10.0, verbose=True
+        # Verify bar.py entities are gone using payload query
+        deleted = verify_entities_exist_by_path(
+            qdrant_store,
+            collection_name,
+            "bar.py",
+            min_expected=0,
+            timeout=10.0,
+            verbose=True,
         )
-        assert (
-            consistency_achieved
-        ), "Eventual consistency timeout: bar.py entities should be deleted"
+        assert deleted, "bar.py entities should be deleted"
 
     def test_deletion_state_persistence(self, temp_repo, dummy_embedder, qdrant_store):
         """Test that deletion state is properly persisted between indexing runs."""
@@ -423,14 +395,14 @@ def temp_func():
         result1 = indexer.index_project(collection_name)
         assert result1.success
 
-        # Verify temp file is indexed with eventual consistency
-        from tests.conftest import verify_entity_searchable
+        # Verify temp file is indexed using payload query (deterministic)
+        from tests.conftest import verify_entities_exist_by_path
 
-        temp_found = verify_entity_searchable(
+        temp_found = verify_entities_exist_by_path(
             qdrant_store,
-            dummy_embedder,
             collection_name,
-            "temp_func",
+            "temporary.py",
+            min_expected=1,
             timeout=10.0,
             verbose=True,
         )
@@ -447,15 +419,17 @@ def temp_func():
         result3 = indexer.index_project(collection_name)
         assert result3.success
 
-        # Verify temp function is still gone after multiple runs
-        search_embedding = dummy_embedder.embed_single("temp_func")
-        hits = qdrant_store.search(collection_name, search_embedding, top_k=5)
-
-        temp_found_after = any(
-            "temp_func" in hit.payload.get("name", "") for hit in hits
+        # Verify temp function is still gone after multiple runs using payload query
+        deleted = verify_entities_exist_by_path(
+            qdrant_store,
+            collection_name,
+            "temporary.py",
+            min_expected=0,
+            timeout=10.0,
+            verbose=True,
         )
         assert (
-            not temp_found_after
+            deleted
         ), "Temp function should remain deleted after multiple indexing runs"
 
     def test_deletion_with_indexing_errors(
