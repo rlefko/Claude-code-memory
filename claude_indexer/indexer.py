@@ -696,23 +696,33 @@ class CoreIndexer:
 
         # Initialize collection if it doesn't exist to avoid warnings
         # Use ensure_collection to properly configure both dense and sparse vectors
+        # Note: If we can't determine the embedder dimension, we skip pre-creation
+        # and let upsert_points create the collection with the correct dimension
         try:
             if not self.vector_store.collection_exists(collection_name):
-                if verbose:
-                    self.logger.info(
-                        f"Creating collection '{collection_name}' with sparse vector support..."
-                    )
-                # Use ensure_collection which properly configures both dense and sparse vectors
-                vector_size = (
-                    512  # Voyage-3-lite default size (matches our default embedder)
-                )
-                self.vector_store.backend.ensure_collection(
-                    collection_name, vector_size
-                )
-                if verbose:
-                    self.logger.info(
-                        f"✅ Collection '{collection_name}' created with hybrid search support"
-                    )
+                # Get vector size from embedder if available
+                vector_size = None
+                if self.embedder:
+                    if hasattr(self.embedder, "dimension"):
+                        vector_size = self.embedder.dimension
+                    elif hasattr(self.embedder, "get_model_info"):
+                        model_info = self.embedder.get_model_info()
+                        if isinstance(model_info, dict) and "dimension" in model_info:
+                            vector_size = model_info["dimension"]
+
+                # Only pre-create if we know the dimension
+                if vector_size:
+                    if verbose:
+                        self.logger.info(
+                            f"Creating collection '{collection_name}' with sparse vector support..."
+                        )
+                    # Handle both CachingVectorStore (has .backend) and QdrantStore (is the backend)
+                    backend = getattr(self.vector_store, "backend", self.vector_store)
+                    backend.ensure_collection(collection_name, vector_size)
+                    if verbose:
+                        self.logger.info(
+                            f"✅ Collection '{collection_name}' created with hybrid search support"
+                        )
         except Exception as e:
             # If collection already exists or any other error, continue
             if verbose:

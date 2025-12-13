@@ -361,23 +361,33 @@ class UnifiedContentProcessor:
             return False
 
     def _reliable_batch_upsert(self, collection_name: str, points: list[Any]) -> bool:
-        """Perform reliable batch upsert with verification."""
+        """Perform reliable batch upsert with verification.
+
+        Uses the vector store's batch_upsert method which properly handles
+        VectorPoint to PointStruct conversion and collection creation.
+        """
         if not points:
             return True
 
         try:
-            # Use existing reliable batch upsert from vector store if available
-            if hasattr(self.vector_store, "batch_upsert"):
-                result = self.vector_store.batch_upsert(collection_name, points)
-                return bool(result.success)
-            else:
-                # Fallback to simple upsert
-                self.vector_store.client.upsert(
-                    collection_name=collection_name,
-                    points=points,
-                    wait=True,  # Ensure synchronous operation
-                )
-                return True
+            # Use the vector store's batch_upsert which handles:
+            # 1. VectorPoint to PointStruct conversion
+            # 2. Collection creation with proper dimensions
+            # 3. Sparse vector handling
+            # 4. Batch splitting and retry logic
+            result = self.vector_store.batch_upsert(collection_name, points)
+
+            if self.logger:
+                if result.success:
+                    self.logger.debug(
+                        f"✅ Batch upsert succeeded: {result.items_processed} points stored"
+                    )
+                else:
+                    self.logger.error(
+                        f"❌ Batch upsert failed: {getattr(result, 'errors', 'Unknown error')}"
+                    )
+
+            return bool(result.success)
 
         except Exception as e:
             if self.logger:

@@ -483,6 +483,7 @@ class TestIndexerConfiguration:
             from claude_indexer.embeddings.base import EmbeddingResult
 
             mock_embedder = Mock()
+            mock_embedder.dimension = 1536  # Required for collection creation
 
             # Mock embed_text method to return EmbeddingResult
             def mock_embed_text(text):
@@ -496,7 +497,7 @@ class TestIndexerConfiguration:
                 )
 
             # Mock embed_batch method to return list of EmbeddingResult
-            def mock_embed_batch(texts):
+            def mock_embed_batch(texts, **kwargs):
                 return [mock_embed_text(text) for text in texts]
 
             mock_embedder.embed_text.side_effect = mock_embed_text
