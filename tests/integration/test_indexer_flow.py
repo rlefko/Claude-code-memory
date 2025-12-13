@@ -553,16 +553,17 @@ class TestIndexerConfiguration:
         # Should exclude test files
         assert result.success is True
 
-        # Verify test files were not indexed
-        search_embedding = dummy_embedder.embed_single("test_something")
-        hits = qdrant_store.search(collection_name, search_embedding, top_k=10)
+        # Verify test files were not indexed using payload query (deterministic)
+        from tests.conftest import get_entities_by_file_path
 
-        from tests.conftest import get_file_path_from_payload
-
-        test_files_found = any(
-            "test_" in get_file_path_from_payload(hit.payload) for hit in hits
+        test_entities = get_entities_by_file_path(
+            qdrant_store, collection_name, "test_", verbose=True
         )
-        assert not test_files_found
+        test_files_found = len(test_entities) > 0
+        assert not test_files_found, (
+            f"Test files should be excluded by filter. "
+            f"Found {len(test_entities)} entities from test files."
+        )
 
 
 @pytest.mark.integration

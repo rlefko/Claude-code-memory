@@ -898,7 +898,8 @@ def verify_entity_searchable(
                 entity_name_field = hit.payload.get("entity_name", "NO_NAME")
                 name_field = hit.payload.get("name", "NO_NAME")
                 print(
-                    f"DEBUG: Hit {i}: entity_name='{entity_name_field}', name='{name_field}', score={hit.score}"
+                    f"DEBUG: Hit {i}: entity_name='{entity_name_field}', "
+                    f"name='{name_field}', score={hit.score}"
                 )
                 if entity_name in str(hit.payload):
                     print(
@@ -927,7 +928,8 @@ def verify_entity_searchable(
                 matching_hits.append(hit)
                 if verbose:
                     print(
-                        f"DEBUG: Unique entity match - entity_name='{entity_name_field}', chunk_type='{chunk_type}'"
+                        f"DEBUG: Unique entity match - "
+                        f"entity_name='{entity_name_field}', chunk_type='{chunk_type}'"
                     )
 
         if verbose:
@@ -942,3 +944,189 @@ def verify_entity_searchable(
         timeout=timeout,
         verbose=verbose,
     )
+
+
+# ---------------------------------------------------------------------------
+# Payload-based query helpers (deterministic, no embedding dependency)
+# ---------------------------------------------------------------------------
+
+
+def get_entities_by_file_path(
+    qdrant_store, collection_name: str, file_path_pattern: str, verbose: bool = False
+) -> list:
+    """
+    Get entities from collection matching a file path pattern using payload filter.
+
+    This bypasses the embedding system entirely, providing deterministic results
+    regardless of what embedder is used. Use this for testing entity existence.
+
+    Args:
+        qdrant_store: QdrantStore instance
+        collection_name: Name of collection to query
+        file_path_pattern: Substring to match in file_path field
+        verbose: Print debug information
+
+    Returns:
+        List of Qdrant points matching the pattern
+    """
+    from qdrant_client.models import FieldCondition, Filter, MatchText
+
+    try:
+        # Query using payload filter - try both top-level and nested file_path
+        results, _ = qdrant_store.client.scroll(
+            collection_name=collection_name,
+            scroll_filter=Filter(
+                should=[
+                    FieldCondition(
+                        key="file_path", match=MatchText(text=file_path_pattern)
+                    ),
+                    FieldCondition(
+                        key="metadata.file_path",
+                        match=MatchText(text=file_path_pattern),
+                    ),
+                ]
+            ),
+            limit=100,
+            with_payload=True,
+        )
+
+        if verbose:
+            print(
+                f"DEBUG: get_entities_by_file_path('{file_path_pattern}') "
+                f"found {len(results)} entities"
+            )
+            for i, point in enumerate(results[:5]):
+                entity_name = point.payload.get("entity_name", "N/A")
+                file_path = get_file_path_from_payload(point.payload)
+                print(f"  {i}: entity_name='{entity_name}', file_path='{file_path}'")
+
+        return results
+
+    except Exception as e:
+        if verbose:
+            print(f"DEBUG: get_entities_by_file_path failed: {e}")
+        return []
+
+
+def get_entities_by_name(
+    qdrant_store, collection_name: str, entity_name: str, verbose: bool = False
+) -> list:
+    """
+    Get entities from collection matching an entity name using payload filter.
+
+    This bypasses the embedding system entirely, providing deterministic results
+    regardless of what embedder is used. Use this for testing entity existence.
+
+    Args:
+        qdrant_store: QdrantStore instance
+        collection_name: Name of collection to query
+        entity_name: Substring to match in entity_name or name field
+        verbose: Print debug information
+
+    Returns:
+        List of Qdrant points matching the name
+    """
+    from qdrant_client.models import FieldCondition, Filter, MatchText
+
+    try:
+        # Query using payload filter - try both entity_name and name fields
+        results, _ = qdrant_store.client.scroll(
+            collection_name=collection_name,
+            scroll_filter=Filter(
+                should=[
+                    FieldCondition(
+                        key="entity_name", match=MatchText(text=entity_name)
+                    ),
+                    FieldCondition(key="name", match=MatchText(text=entity_name)),
+                ]
+            ),
+            limit=100,
+            with_payload=True,
+        )
+
+        if verbose:
+            print(
+                f"DEBUG: get_entities_by_name('{entity_name}') "
+                f"found {len(results)} entities"
+            )
+            for i, point in enumerate(results[:5]):
+                name_field = point.payload.get("entity_name", "N/A")
+                chunk_type = point.payload.get("chunk_type", "N/A")
+                print(f"  {i}: entity_name='{name_field}', chunk_type='{chunk_type}'")
+
+        return results
+
+    except Exception as e:
+        if verbose:
+            print(f"DEBUG: get_entities_by_name failed: {e}")
+        return []
+
+
+def verify_entities_exist_by_path(
+    qdrant_store,
+    collection_name: str,
+    path_pattern: str,
+    min_expected: int = 1,
+    timeout: float = 15.0,
+    verbose: bool = False,
+) -> bool:
+    """
+    Verify that entities from a file path exist in the collection.
+
+    Uses payload-based queries for deterministic verification without
+    relying on embedding similarity.
+
+    Args:
+        qdrant_store: QdrantStore instance
+        collection_name: Name of collection to query
+        path_pattern: Substring to match in file_path
+        min_expected: Minimum number of entities expected (default: 1).
+                      Use 0 to verify entities are deleted.
+        timeout: Maximum time to wait for eventual consistency
+        verbose: Print debug information
+
+    Returns:
+        True if condition is met, False if timeout
+    """
+    import time
+
+    start_time = time.time()
+    delay = 0.5
+
+    while time.time() - start_time < timeout:
+        results = get_entities_by_file_path(
+            qdrant_store, collection_name, path_pattern, verbose=False
+        )
+        actual_count = len(results)
+
+        if verbose:
+            print(
+                f"verify_entities_exist_by_path: min_expected={min_expected}, "
+                f"actual={actual_count}"
+            )
+
+        if min_expected > 0:
+            # For existence check: at least min_expected entities
+            if actual_count >= min_expected:
+                if verbose:
+                    print(
+                        f"Found {actual_count} entities (>= {min_expected}) "
+                        f"after {time.time() - start_time:.2f}s"
+                    )
+                return True
+        else:
+            # For deletion check: exactly 0 entities
+            if actual_count == 0:
+                if verbose:
+                    print(f"Verified 0 entities after {time.time() - start_time:.2f}s")
+                return True
+
+        time.sleep(delay)
+        delay = min(delay * 1.2, 3.0)
+
+    if verbose:
+        print(
+            f"Timeout: expected {'>=' if min_expected > 0 else '=='} "
+            f"{min_expected}, got {actual_count}"
+        )
+    return False

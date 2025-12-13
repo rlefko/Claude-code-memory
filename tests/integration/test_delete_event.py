@@ -256,17 +256,26 @@ class SubClass_{i}:
 
         initial_count = qdrant_store.count(collection_name)
 
-        # Verify subdirectory content is indexed
-        from tests.conftest import get_file_path_from_payload
+        # Verify subdirectory content is indexed using payload query (deterministic)
+        from tests.conftest import (
+            get_entities_by_file_path,
+            verify_entities_exist_by_path,
+        )
 
-        search_embedding = dummy_embedder.embed_single("SubClass_0")
-        hits = qdrant_store.search(collection_name, search_embedding, top_k=10)
+        # Wait for entities to be indexed with eventual consistency
+        entities_exist = verify_entities_exist_by_path(
+            qdrant_store,
+            collection_name,
+            "to_delete",
+            min_expected=1,
+            timeout=15.0,
+            verbose=True,
+        )
+        assert entities_exist, "Should find entities from subdirectory"
 
-        subdir_entities_before = [
-            hit
-            for hit in hits
-            if "to_delete" in get_file_path_from_payload(hit.payload)
-        ]
+        subdir_entities_before = get_entities_by_file_path(
+            qdrant_store, collection_name, "to_delete", verbose=True
+        )
         assert len(subdir_entities_before) > 0, "Should find entities from subdirectory"
 
         # Delete entire subdirectory
@@ -283,15 +292,21 @@ class SubClass_{i}:
             final_count < initial_count
         ), "Count should decrease after directory deletion"
 
-        # Verify subdirectory entities are gone
-        search_embedding = dummy_embedder.embed_single("SubClass_0")
-        hits = qdrant_store.search(collection_name, search_embedding, top_k=10)
+        # Verify subdirectory entities are gone using payload query (deterministic)
+        # Wait for eventual consistency
+        entities_deleted = verify_entities_exist_by_path(
+            qdrant_store,
+            collection_name,
+            "to_delete",
+            min_expected=0,  # Expect 0 entities after deletion
+            timeout=15.0,
+            verbose=True,
+        )
+        assert entities_deleted, "Entities from deleted subdirectory should be removed"
 
-        subdir_entities_after = [
-            hit
-            for hit in hits
-            if "to_delete" in get_file_path_from_payload(hit.payload)
-        ]
+        subdir_entities_after = get_entities_by_file_path(
+            qdrant_store, collection_name, "to_delete", verbose=True
+        )
         assert (
             len(subdir_entities_after) == 0
         ), "Should not find entities from deleted subdirectory"
