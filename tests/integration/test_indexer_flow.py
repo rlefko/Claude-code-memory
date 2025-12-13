@@ -283,7 +283,7 @@ class TestACustomFlow:
             ]
 
         # Wait for eventual consistency
-        consistency_achieved = wait_for_eventual_consistency(
+        wait_for_eventual_consistency(
             find_subtract_entity, expected_count=1, timeout=30.0, verbose=True
         )
 

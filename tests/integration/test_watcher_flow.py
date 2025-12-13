@@ -109,8 +109,6 @@ class TestWatcherFlow:
 
     async def test_multiple_file_changes(self, temp_repo, dummy_embedder, qdrant_store):
         """Test watching multiple file changes."""
-        import time
-
         from tests.conftest import verify_entity_searchable, wait_for_collection_ready
 
         collection_name = get_unique_collection_name("test_multi_watch")
