@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.0.0] - 2024-12-13
+
+### Breaking Changes
+- **Removed deprecated `utils/gitignore_parser.py`** - Use `utils/exclusion_manager.py` instead
+  - `get_patterns_for_project()` function is still available in `exclusion_manager.py`
+  - `GitignoreParser` class is available as `exclusion_manager.GitignoreParser`
+  - `ExclusionManager` provides the full multi-layer exclusion API
+- **Removed deprecated `utils/merge_settings.py`** - No longer needed since `.mcp.json` migration
+
+### Removed
+- `get_test_collection_name()` from test fixtures - Use `get_unique_collection_name()` instead
+
+### Fixed
+- **Version synchronization** - All documentation and code now consistently report v1.0.0
+  - Previously: README.md said v2.9, CLAUDE.md said v2.8, code said v0.2.0
+- **Documentation accuracy** - Updated README.md to reference `exclusion_manager.py` instead of deprecated `gitignore_parser.py`
+
+### Changed
+- **Version scheme reset** - Moving to semantic versioning with v1.0.0 as the first stable release
+  - This marks a clean break from the inconsistent versioning history
+
+---
+
 ## [2.9.19] - 2024-12-12
 
 ### Added

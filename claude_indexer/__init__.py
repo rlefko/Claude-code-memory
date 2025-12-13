@@ -4,7 +4,7 @@ A modular, scalable solution for indexing Python codebases with semantic search 
 Supports multiple automation modes including file watching, service management, and git hooks.
 """
 
-__version__ = "0.2.0"
+__version__ = "1.0.0"
 __author__ = "Claude Code Memory Project"
 __description__ = "Universal semantic indexer for Python codebases with vector search"
 

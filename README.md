@@ -1,6 +1,6 @@
 # Claude Code Memory - Transform Claude into a 10x Senior Architect
 
-> **v2.9** | Semantic code memory for Claude Code with hybrid search, Memory Guard v4.3, and intelligent hooks
+> **v1.0** | Semantic code memory for Claude Code with hybrid search, Memory Guard v4.3, and intelligent hooks
 
 ```mermaid
 graph LR
@@ -643,23 +643,31 @@ docker run -p 6333:6333 -v $(pwd)/qdrant_storage:/qdrant/storage qdrant/qdrant
 
 ## 🔧 Automation Features
 
-### Gitignore Pattern Detection
-The system automatically detects and excludes files from your `.gitignore`:
+### Exclusion Pattern Detection
+The system automatically detects and excludes files using multiple layers:
 
 ```python
-# Utility: utils/gitignore_parser.py
-from utils.gitignore_parser import get_patterns_for_project
+# Utility: utils/exclusion_manager.py
+from utils.exclusion_manager import ExclusionManager, get_patterns_for_project
 
-# Automatically excludes build artifacts, dependencies, generated files
+# Get patterns for a project (combines .gitignore + .claudeignore + defaults)
+manager = ExclusionManager('/path/to/project')
+patterns = manager.get_all_patterns()
+
+# Check if a specific file should be excluded
+if manager.should_exclude(file_path):
+    skip_indexing()
+
+# Simple function interface
 patterns = get_patterns_for_project('/path/to/project')
 # Returns: ['.git/', 'node_modules/', 'dist/', '__pycache__/', ...]
 ```
 
-**Benefits:**
-- No manual exclude configuration needed
-- Respects project-specific .gitignore patterns
-- Combines with sensible defaults (`.git/`, `.claude-indexer/`, build outputs)
-- Prevents indexing of generated code and dependencies
+**Multi-Layer Exclusion:**
+- Universal defaults (`.git/`, `node_modules/`, build outputs)
+- Project `.gitignore` patterns
+- Custom `.claudeignore` patterns for indexing-specific exclusions
+- Binary file detection (magic numbers, executable bits)
 
 ### CLAUDE.md Template System
 Automatically generates project-specific documentation:
