@@ -16,7 +16,6 @@ from pathlib import Path
 import numpy as np
 import pytest
 from qdrant_client import QdrantClient
-from qdrant_client.http.models import Distance, VectorParams
 
 
 def pytest_addoption(parser):
