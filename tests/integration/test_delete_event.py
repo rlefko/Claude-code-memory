@@ -41,21 +41,34 @@ class TestDeleteEventHandling:
         result1 = indexer.index_project(collection_name, include_tests=True)
         assert result1.success
 
-        initial_count = qdrant_store.count(collection_name)
-        assert initial_count >= 3  # foo.py, bar.py, helpers.py
+        # Wait for eventual consistency before checking count (CI may have delays)
+        import time
 
-        # Verify we can find content from foo.py
-        from tests.conftest import get_file_path_from_payload
+        max_wait = 15.0
+        start_time = time.time()
+        initial_count = 0
+        while time.time() - start_time < max_wait:
+            initial_count = qdrant_store.count(collection_name)
+            if initial_count >= 3:
+                break
+            time.sleep(0.5)
 
-        search_embedding = dummy_embedder.embed_single("add function")
-        hits = qdrant_store.search(collection_name, search_embedding, top_k=10)
+        assert initial_count >= 3, f"Should have at least 3 points indexed, got {initial_count}"
 
-        foo_entities_before = [
-            hit for hit in hits if "foo.py" in get_file_path_from_payload(hit.payload)
-        ]
-        assert (
-            len(foo_entities_before) > 0
-        ), "Should find entities from foo.py initially"
+        # Verify we can find content from foo.py with retry for eventual consistency
+        from tests.conftest import get_file_path_from_payload, verify_entity_searchable
+
+        # Use Calculator which is a unique entity name in foo.py
+        found = verify_entity_searchable(
+            qdrant_store,
+            dummy_embedder,
+            collection_name,
+            "Calculator",  # Search for Calculator class in foo.py
+            timeout=15.0,
+            verbose=True,
+            expected_count=1,
+        )
+        assert found, "Should find entities from foo.py initially"
 
         # Delete foo.py
         (temp_repo / "foo.py").unlink()
