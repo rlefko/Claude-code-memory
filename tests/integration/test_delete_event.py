@@ -46,11 +46,13 @@ class TestDeleteEventHandling:
         assert initial_count >= 3  # foo.py, bar.py, helpers.py
 
         # Verify we can find content from foo.py
+        from tests.conftest import get_file_path_from_payload
+
         search_embedding = dummy_embedder.embed_single("add function")
         hits = qdrant_store.search(collection_name, search_embedding, top_k=10)
 
         foo_entities_before = [
-            hit for hit in hits if "foo.py" in hit.payload.get("file_path", "")
+            hit for hit in hits if "foo.py" in get_file_path_from_payload(hit.payload)
         ]
         assert (
             len(foo_entities_before) > 0
@@ -84,8 +86,10 @@ class TestDeleteEventHandling:
                     hit
                     for hit in hits
                     if (
-                        hit.payload.get("file_path", "").endswith("foo.py")
-                        and not hit.payload.get("file_path", "").endswith("test_foo.py")
+                        get_file_path_from_payload(hit.payload).endswith("foo.py")
+                        and not get_file_path_from_payload(hit.payload).endswith(
+                            "test_foo.py"
+                        )
                     )
                 ]
                 all_foo_hits.extend(foo_hits)
@@ -241,11 +245,15 @@ class SubClass_{i}:
         initial_count = qdrant_store.count(collection_name)
 
         # Verify subdirectory content is indexed
+        from tests.conftest import get_file_path_from_payload
+
         search_embedding = dummy_embedder.embed_single("SubClass_0")
         hits = qdrant_store.search(collection_name, search_embedding, top_k=10)
 
         subdir_entities_before = [
-            hit for hit in hits if "to_delete" in hit.payload.get("file_path", "")
+            hit
+            for hit in hits
+            if "to_delete" in get_file_path_from_payload(hit.payload)
         ]
         assert len(subdir_entities_before) > 0, "Should find entities from subdirectory"
 
@@ -268,7 +276,9 @@ class SubClass_{i}:
         hits = qdrant_store.search(collection_name, search_embedding, top_k=10)
 
         subdir_entities_after = [
-            hit for hit in hits if "to_delete" in hit.payload.get("file_path", "")
+            hit
+            for hit in hits
+            if "to_delete" in get_file_path_from_payload(hit.payload)
         ]
         assert (
             len(subdir_entities_after) == 0
@@ -321,6 +331,8 @@ class SubClass_{i}:
         assert result2.success
 
         # Verify that foo.py entities are still present - search for add function instead of Calculator
+        from tests.conftest import get_file_path_from_payload
+
         search_embedding = dummy_embedder.embed_single("add")
         hits = qdrant_store.search(collection_name, search_embedding, top_k=10)
 
@@ -328,7 +340,7 @@ class SubClass_{i}:
         foo_entities_after = [
             hit
             for hit in hits
-            if hit.payload.get("file_path", "").endswith("foo.py")
+            if get_file_path_from_payload(hit.payload).endswith("foo.py")
             and hit.payload.get("entity_name") in ["add", "Calculator"]
         ]
         assert (
@@ -341,7 +353,11 @@ class SubClass_{i}:
         def search_bar_entities():
             search_embedding = dummy_embedder.embed_single("main")
             hits = qdrant_store.search(collection_name, search_embedding, top_k=10)
-            return [hit for hit in hits if "bar.py" in hit.payload.get("file_path", "")]
+            return [
+                hit
+                for hit in hits
+                if "bar.py" in get_file_path_from_payload(hit.payload)
+            ]
 
         consistency_achieved = wait_for_eventual_consistency(
             search_bar_entities, expected_count=0, timeout=10.0, verbose=True
@@ -742,7 +758,7 @@ def helper_function():
         ), f"Expected relation count to decrease from {initial_relation_count} to {len(final_relations)}"
 
         # Wait for eventual consistency and verify entities from deleted file are gone
-        from tests.conftest import wait_for_eventual_consistency
+        from tests.conftest import get_file_path_from_payload, wait_for_eventual_consistency
 
         def search_helpers_entities():
             search_embedding = dummy_embedder.embed_single("helper_function")
@@ -750,8 +766,8 @@ def helper_function():
             return [
                 hit
                 for hit in hits
-                if hit.payload.get("file_path", "").endswith("helpers.py")
-                and "utils/" not in hit.payload.get("file_path", "")
+                if get_file_path_from_payload(hit.payload).endswith("helpers.py")
+                and "utils/" not in get_file_path_from_payload(hit.payload)
             ]
 
         consistency_achieved = wait_for_eventual_consistency(
@@ -768,7 +784,7 @@ def helper_function():
         # Debug: Print search results for main_module.py verification
         print(f"DEBUG: MainClass search returned {len(main_hits)} hits:")
         for i, hit in enumerate(main_hits):
-            file_path = hit.payload.get("file_path", "N/A")
+            file_path = get_file_path_from_payload(hit.payload)
             entity_name = hit.payload.get("entity_name", "N/A")
             name = hit.payload.get("name", "N/A")
             print(
@@ -778,7 +794,7 @@ def helper_function():
         main_entities = [
             hit
             for hit in main_hits
-            if "main_module.py" in hit.payload.get("file_path", "")
+            if "main_module.py" in get_file_path_from_payload(hit.payload)
         ]
 
         # If the search approach fails, try checking if main_module.py entities exist in final_entities

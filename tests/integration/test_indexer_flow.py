@@ -280,8 +280,10 @@ class TestACustomFlow:
 
         print(f"Total entities in collection: {len(all_entities)}")
         for entity in all_entities[:10]:  # Show first 10
+            from tests.conftest import get_file_path_from_payload
+
             name = entity.payload.get("name", "N/A")
-            file_path = entity.payload.get("file_path", "N/A")
+            file_path = get_file_path_from_payload(entity.payload) or "N/A"
             print(f"  - {name} (from {file_path})")
 
         # Wait for eventual consistency
@@ -450,7 +452,9 @@ def common_function():
         hits = qdrant_store.search("test_duplicates", search_embedding, top_k=10)
 
         # Should find function in both files
-        file_paths = {hit.payload.get("file_path", "") for hit in hits}
+        from tests.conftest import get_file_path_from_payload
+
+        file_paths = {get_file_path_from_payload(hit.payload) for hit in hits}
         assert "module1.py" in str(file_paths)
         assert "module2.py" in str(file_paths)
 
@@ -546,8 +550,10 @@ class TestIndexerConfiguration:
         search_embedding = dummy_embedder.embed_single("test_something")
         hits = qdrant_store.search("test_filters", search_embedding, top_k=10)
 
+        from tests.conftest import get_file_path_from_payload
+
         test_files_found = any(
-            "test_" in hit.payload.get("file_path", "") for hit in hits
+            "test_" in get_file_path_from_payload(hit.payload) for hit in hits
         )
         assert not test_files_found
 

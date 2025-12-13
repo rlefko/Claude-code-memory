@@ -293,6 +293,8 @@ def temp_function():
             from tests.conftest import wait_for_eventual_consistency
 
             def search_temp_function():
+                from tests.conftest import get_file_path_from_payload
+
                 search_embedding = dummy_embedder.embed_single("temp_function")
                 hits = qdrant_store.search("test_deletions", search_embedding, top_k=5)
                 # Return hits that reference the deleted file
@@ -300,7 +302,7 @@ def temp_function():
                     hit
                     for hit in hits
                     if "temp_function" in hit.payload.get("name", "")
-                    and "temporary.py" in hit.payload.get("file_path", "")
+                    and "temporary.py" in get_file_path_from_payload(hit.payload)
                 ]
 
             consistency_achieved = wait_for_eventual_consistency(

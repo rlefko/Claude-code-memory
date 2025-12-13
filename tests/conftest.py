@@ -187,16 +187,13 @@ def qdrant_client() -> Iterator[QdrantClient]:
         # Fall back to unauthenticated for local testing
         client = QdrantClient("localhost", port=6333)
 
-    # Create test collection with timestamp to ensure uniqueness and easy cleanup
-    collection_name = get_test_collection_name("test_collection")
+    # Verify Qdrant is available without pre-creating collections.
+    # Collections are created by CoreIndexer/QdrantStore via production path
+    # with proper named vector configuration (dense + bm25 sparse vectors).
+    # Pre-creating with unnamed vectors causes search() to fail since it
+    # expects named "dense" vector: query_vector=("dense", query_vector)
     try:
-        collections = client.get_collections().collections
-        if not any(c.name == collection_name for c in collections):
-            client.create_collection(
-                collection_name=collection_name,
-                vectors_config=VectorParams(size=1536, distance=Distance.COSINE),
-                optimizers_config={"indexing_threshold": 1000},
-            )
+        client.get_collections()
     except Exception as e:
         pytest.skip(f"Qdrant not available: {e}")
 
@@ -265,6 +262,50 @@ def qdrant_store(qdrant_client) -> "QdrantStore":
         warnings.warn(f"QdrantStore cleanup failed: {e}", stacklevel=2)
 
     return store
+
+
+@pytest.fixture()
+def ensure_test_collection(qdrant_store):
+    """
+    Helper fixture to create collections with proper named vector configuration.
+
+    This ensures collections are created via the production path with
+    named vectors ("dense" + "bm25" sparse), matching what CoreIndexer expects.
+    Use this when you need to explicitly create a collection for testing
+    without going through CoreIndexer.
+
+    Usage:
+        def test_example(ensure_test_collection, qdrant_store):
+            collection_name = ensure_test_collection("my_test_collection")
+            # Collection now exists with proper configuration
+    """
+    created_collections = []
+
+    def _ensure_collection(collection_name: str) -> str:
+        """Ensure collection exists with proper named vector configuration."""
+        # Delete existing collection to ensure clean state
+        if qdrant_store.collection_exists(collection_name):
+            qdrant_store.delete_collection(collection_name)
+
+        # Create with sparse vector support (production path)
+        vector_size = 1536  # Match dummy_embedder dimension
+        qdrant_store.create_collection_with_sparse_vectors(
+            collection_name=collection_name,
+            dense_vector_size=vector_size,
+            distance_metric="cosine",
+        )
+        created_collections.append(collection_name)
+        return collection_name
+
+    yield _ensure_collection
+
+    # Cleanup created collections
+    for name in created_collections:
+        try:
+            if qdrant_store.collection_exists(name):
+                qdrant_store.delete_collection(name)
+        except Exception:
+            pass  # Best effort cleanup
 
 
 # ---------------------------------------------------------------------------
@@ -644,7 +685,7 @@ def wait_for_eventual_consistency(
                     for i, result in enumerate(results[:3]):  # Show first 3 results
                         if hasattr(result, "payload"):
                             name = result.payload.get("name", "Unknown")
-                            file_path = result.payload.get("file_path", "Unknown")
+                            file_path = get_file_path_from_payload(result.payload) or "Unknown"
                             print(f"  Still found #{i + 1}: {name} in {file_path}")
                         else:
                             print(f"  Still found #{i + 1}: {result}")
@@ -731,6 +772,40 @@ def wait_for_collection_ready(
     # Always log timeout - this is important for debugging
     print(f"Timeout: Collection '{collection_name}' not ready after {timeout}s")
     return False
+
+
+def get_file_path_from_payload(payload: dict) -> str:
+    """
+    Extract file_path from a Qdrant payload, handling both legacy and current structures.
+
+    Current structure: file_path is nested inside metadata dict.
+    Legacy structure: file_path was at top level (for backward compatibility).
+    File entities: entity_name may contain the file path.
+
+    Args:
+        payload: Qdrant payload dict
+
+    Returns:
+        file_path string or empty string if not found
+    """
+    # Try top-level first (legacy structure)
+    file_path = payload.get("file_path", "")
+    if file_path:
+        return file_path
+
+    # Try nested in metadata (current structure)
+    metadata = payload.get("metadata", {})
+    if isinstance(metadata, dict):
+        file_path = metadata.get("file_path", "")
+        if file_path:
+            return file_path
+
+    # For file entities, entity_name may contain the path
+    entity_name = payload.get("entity_name", "")
+    if entity_name and "/" in entity_name and entity_name.endswith(".py"):
+        return entity_name
+
+    return ""
 
 
 def verify_entity_searchable(

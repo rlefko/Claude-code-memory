@@ -497,10 +497,10 @@ def module_{module_i}_function_{func_i}():
                 or entity.payload.get("name", "")
                 or entity.payload.get("content", "")
             )
-            # file_path may be at top level or nested in metadata
-            file_path = entity.payload.get("file_path", "")
-            if not file_path and "metadata" in entity.payload:
-                file_path = entity.payload.get("metadata", {}).get("file_path", "")
+            # file_path may be at top level, nested in metadata, or in entity_name for file entities
+            from tests.conftest import get_file_path_from_payload
+
+            file_path = get_file_path_from_payload(entity.payload)
             assert (
                 "module_0" in file_path
             ), f"Expected 'module_0' in file_path, got: {file_path}"
