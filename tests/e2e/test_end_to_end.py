@@ -11,6 +11,8 @@ from unittest.mock import Mock, patch
 
 import pytest
 
+from tests.conftest import get_unique_collection_name
+
 try:
     from claude_indexer import cli_full as cli
 
@@ -255,6 +257,7 @@ class TestFullSystemWorkflows:
         self, temp_repo, dummy_embedder, qdrant_store, test_config
     ):
         """Test complete index -> search workflow."""
+        collection_name = get_unique_collection_name("test_e2e_workflow")
         config = test_config
 
         # Step 1: Index the project
@@ -267,7 +270,7 @@ class TestFullSystemWorkflows:
             project_path=temp_repo,
         )
 
-        result = indexer.index_project("test_e2e_workflow")
+        result = indexer.index_project(collection_name)
         assert result.success
         assert result.entities_created >= 3
 
@@ -277,7 +280,7 @@ class TestFullSystemWorkflows:
         add_function_found = verify_entity_searchable(
             qdrant_store,
             dummy_embedder,
-            "test_e2e_workflow",
+            collection_name,
             "add",
             timeout=10.0,
             verbose=True,
@@ -296,14 +299,14 @@ def search_test_function():
 '''
         )
 
-        result2 = indexer.index_project("test_e2e_workflow")
+        result2 = indexer.index_project(collection_name)
         assert result2.success
 
         # Step 4: Search for new content with eventual consistency
         new_function_found = verify_entity_searchable(
             qdrant_store,
             dummy_embedder,
-            "test_e2e_workflow",
+            collection_name,
             "search_test_function",
             timeout=10.0,
             verbose=True,
@@ -314,6 +317,7 @@ def search_test_function():
         self, temp_repo, dummy_embedder, qdrant_store, test_config
     ):
         """Test incremental indexing maintains consistency."""
+        collection_name = get_unique_collection_name("test_incremental_e2e")
         config = test_config
 
         from claude_indexer.indexer import CoreIndexer
@@ -326,26 +330,22 @@ def search_test_function():
         )
 
         # Initial index
-        indexer.index_project("test_incremental_e2e")
-        initial_count = qdrant_store.count("test_incremental_e2e")
+        indexer.index_project(collection_name)
+        initial_count = qdrant_store.count(collection_name)
 
         # First incremental run (no changes)
-        result2 = indexer.index_project("test_incremental_e2e")
+        result2 = indexer.index_project(collection_name)
         assert result2.success
-        assert (
-            qdrant_store.count("test_incremental_e2e") == initial_count
-        )  # Should be same
+        assert qdrant_store.count(collection_name) == initial_count  # Should be same
 
         # Add a file (use a name that won't be filtered as a test file)
         new_file = temp_repo / "additional_module.py"
         new_file.write_text('def incremental_func(): return "incremental"')
 
         # Second incremental run (with changes)
-        result3 = indexer.index_project("test_incremental_e2e")
+        result3 = indexer.index_project(collection_name)
         assert result3.success
-        assert (
-            qdrant_store.count("test_incremental_e2e") > initial_count
-        )  # Should increase
+        assert qdrant_store.count(collection_name) > initial_count  # Should increase
 
         # Verify new content is searchable with eventual consistency
         from tests.conftest import verify_entity_searchable
@@ -353,7 +353,7 @@ def search_test_function():
         incremental_found = verify_entity_searchable(
             qdrant_store,
             dummy_embedder,
-            "test_incremental_e2e",
+            collection_name,
             "incremental_func",
             timeout=10.0,
             verbose=True,
@@ -362,6 +362,7 @@ def search_test_function():
 
     def test_error_recovery_workflow(self, temp_repo, qdrant_store, test_config):
         """Test system recovery from various error conditions."""
+        collection_name = get_unique_collection_name("test_error_recovery")
         config = test_config
 
         # Create an embedder that fails sometimes
@@ -390,7 +391,7 @@ def search_test_function():
         )
 
         # Should handle partial failures gracefully
-        result = indexer.index_project("test_error_recovery")
+        result = indexer.index_project(collection_name)
 
         # System should be resilient to individual failures
         # (exact behavior depends on error handling implementation)
@@ -398,13 +399,14 @@ def search_test_function():
 
         # Should be able to recover and continue
         call_count = 0  # Reset for successful run
-        result2 = indexer.index_project("test_error_recovery")
+        result2 = indexer.index_project(collection_name)
         assert result2.success
 
     def test_large_project_workflow(
         self, tmp_path, dummy_embedder, qdrant_store, test_config
     ):
         """Test workflow with a larger simulated project."""
+        collection_name = get_unique_collection_name("test_large_project")
         config = test_config
 
         # Create a larger project structure
@@ -453,7 +455,7 @@ def module_{module_i}_function_{func_i}():
         )
 
         # Should handle large project efficiently
-        result = indexer.index_project("test_large_project")
+        result = indexer.index_project(collection_name)
         assert result.success
 
         # Should create substantial number of entities
@@ -468,9 +470,7 @@ def module_{module_i}_function_{func_i}():
             search_embedding = dummy_embedder.embed_single("Module0Class0")
             # Use top_k=300 for large project to ensure we find all target entities
             # With 50 files * ~17 entities per file = ~850 total entities, we need sufficient search scope
-            hits = qdrant_store.search(
-                "test_large_project", search_embedding, top_k=300
-            )
+            hits = qdrant_store.search(collection_name, search_embedding, top_k=300)
             matching_hits = [
                 hit
                 for hit in hits
@@ -783,6 +783,7 @@ class TestPerformanceAndScalability:
         self, temp_repo, dummy_embedder, qdrant_store, test_config
     ):
         """Test basic performance characteristics."""
+        collection_name = get_unique_collection_name("test_performance")
         config = test_config
 
         from claude_indexer.indexer import CoreIndexer
@@ -795,7 +796,7 @@ class TestPerformanceAndScalability:
         )
 
         start_time = time.time()
-        result = indexer.index_project("test_performance")
+        result = indexer.index_project(collection_name)
         duration = time.time() - start_time
 
         assert result.success
@@ -811,6 +812,7 @@ class TestPerformanceAndScalability:
         self, temp_repo, dummy_embedder, qdrant_store, test_config
     ):
         """Test that incremental indexing is faster than full re-indexing."""
+        collection_name = get_unique_collection_name("test_incremental_perf")
         config = test_config
 
         from claude_indexer.indexer import CoreIndexer
@@ -824,7 +826,7 @@ class TestPerformanceAndScalability:
 
         # Initial full index
         start_time = time.time()
-        result1 = indexer.index_project("test_incremental_perf")
+        result1 = indexer.index_project(collection_name)
         full_index_time = time.time() - start_time
 
         # Add one small file
@@ -833,7 +835,7 @@ class TestPerformanceAndScalability:
 
         # Incremental index
         start_time = time.time()
-        result2 = indexer.index_project("test_incremental_perf")
+        result2 = indexer.index_project(collection_name)
         incremental_time = time.time() - start_time
 
         assert result1.success

@@ -147,11 +147,26 @@ def empty_repo(tmp_path_factory) -> Path:
 
 
 def get_test_collection_name(base_name: str = "test_collection") -> str:
-    """Generate a unique test collection name with timestamp."""
+    """Generate a unique test collection name with timestamp.
+
+    DEPRECATED: Use get_unique_collection_name() for guaranteed uniqueness.
+    This function uses second-precision timestamps which can cause collisions.
+    """
     import time
 
     timestamp = int(time.time())
     return f"{base_name}_{timestamp}"
+
+
+def get_unique_collection_name(prefix: str = "test") -> str:
+    """Generate guaranteed unique collection name using UUID4.
+
+    This should be used instead of get_test_collection_name() to avoid
+    collection name collisions in rapid test execution scenarios.
+    """
+    import uuid
+
+    return f"{prefix}_{uuid.uuid4().hex[:12]}"
 
 
 def is_production_collection(collection_name: str) -> bool:
@@ -305,6 +320,41 @@ def ensure_test_collection(qdrant_store):
                 qdrant_store.delete_collection(name)
         except Exception:
             pass  # Best effort cleanup
+
+
+@pytest.fixture()
+def isolated_config(tmp_path):
+    """
+    Create IndexerConfig with isolated state directory for test isolation.
+
+    Each test gets its own state directory via pytest's tmp_path fixture,
+    preventing state file contamination between tests.
+
+    Usage:
+        def test_example(isolated_config, temp_repo, dummy_embedder, qdrant_store):
+            collection_name = get_unique_collection_name("test_example")
+            config = isolated_config(collection_name)
+            indexer = CoreIndexer(config=config, embedder=dummy_embedder,
+                                  vector_store=qdrant_store, project_path=temp_repo)
+    """
+    from claude_indexer.config import IndexerConfig, load_config
+
+    # Load base config for API credentials
+    base_config = load_config()
+
+    def _create_config(collection_name: str, **kwargs) -> IndexerConfig:
+        return IndexerConfig(
+            collection_name=collection_name,
+            embedder_type="dummy",
+            storage_type="qdrant",
+            state_directory=tmp_path / "indexer_state",
+            openai_api_key=base_config.openai_api_key,
+            qdrant_api_key=base_config.qdrant_api_key,
+            qdrant_url=base_config.qdrant_url,
+            **kwargs,
+        )
+
+    return _create_config
 
 
 # ---------------------------------------------------------------------------
@@ -630,7 +680,7 @@ def count_python_files(path: Path) -> int:
 def wait_for_eventual_consistency(
     search_func,
     expected_count: int = 0,
-    timeout: float = 15.0,
+    timeout: float = 30.0,  # Increased from 15.0 for CI network latency
     initial_delay: float = 0.5,
     max_delay: float = 3.0,
     backoff_multiplier: float = 1.2,

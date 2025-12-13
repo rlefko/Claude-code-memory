@@ -11,6 +11,7 @@ import pytest
 
 from claude_indexer.config import IndexerConfig
 from claude_indexer.indexer import CoreIndexer
+from tests.conftest import get_unique_collection_name
 
 
 @pytest.mark.integration
@@ -21,9 +22,7 @@ class TestDeleteEventHandling:
         self, temp_repo, dummy_embedder, qdrant_store
     ):
         """Test cleanup when a single file is deleted."""
-        import time
-
-        collection_name = f"test_delete_simple_{int(time.time() * 1000)}"
+        collection_name = get_unique_collection_name("test_delete_simple")
 
         config = IndexerConfig(
             collection_name=collection_name,
@@ -114,9 +113,7 @@ class TestDeleteEventHandling:
 
     def test_multiple_file_deletion(self, temp_repo, dummy_embedder, qdrant_store):
         """Test cleanup when multiple files are deleted."""
-        import time
-
-        collection_name = f"test_delete_multi_{int(time.time() * 1000)}"
+        collection_name = get_unique_collection_name("test_delete_multi")
 
         config = IndexerConfig(
             collection_name=collection_name,
@@ -203,9 +200,7 @@ def extra_function_{i}():
 
     def test_directory_deletion_cleanup(self, temp_repo, dummy_embedder, qdrant_store):
         """Test cleanup when an entire directory is deleted."""
-        import time
-
-        collection_name = f"test_delete_dir_{int(time.time() * 1000)}"
+        collection_name = get_unique_collection_name("test_delete_dir")
 
         config = IndexerConfig(
             collection_name=collection_name,
@@ -288,9 +283,7 @@ class SubClass_{i}:
         self, temp_repo, dummy_embedder, qdrant_store
     ):
         """Test that deletion cleanup doesn't affect remaining files."""
-        import time
-
-        collection_name = f"test_delete_partial_{int(time.time() * 1000)}"
+        collection_name = get_unique_collection_name("test_delete_partial")
 
         config = IndexerConfig(
             collection_name=collection_name,
@@ -368,9 +361,7 @@ class SubClass_{i}:
 
     def test_deletion_state_persistence(self, temp_repo, dummy_embedder, qdrant_store):
         """Test that deletion state is properly persisted between indexing runs."""
-        import time
-
-        collection_name = f"test_delete_persistence_{int(time.time() * 1000)}"
+        collection_name = get_unique_collection_name("test_delete_persistence")
 
         config = IndexerConfig(
             collection_name=collection_name,
@@ -439,9 +430,7 @@ def temp_func():
         self, temp_repo, dummy_embedder, qdrant_store, tmp_path
     ):
         """Test that deletion cleanup works even when there are indexing errors."""
-        import time
-
-        collection_name = f"test_delete_errors_{int(time.time() * 1000)}"
+        collection_name = get_unique_collection_name("test_delete_errors")
 
         config = IndexerConfig(
             collection_name=collection_name,
@@ -507,9 +496,7 @@ class TestDeleteEventEdgeCases:
         self, temp_repo, dummy_embedder, qdrant_store
     ):
         """Test handling deletion of files that were never indexed."""
-        import time
-
-        collection_name = f"test_delete_nonexistent_{int(time.time() * 1000)}"
+        collection_name = get_unique_collection_name("test_delete_nonexistent")
 
         config = IndexerConfig(
             collection_name=collection_name,
@@ -541,9 +528,7 @@ class TestDeleteEventEdgeCases:
         self, temp_repo, dummy_embedder, qdrant_store
     ):
         """Test race condition where file is deleted during indexing."""
-        import time
-
-        collection_name = f"test_delete_race_{int(time.time() * 1000)}"
+        collection_name = get_unique_collection_name("test_delete_race")
 
         config = IndexerConfig(
             collection_name=collection_name,
@@ -579,9 +564,7 @@ class TestDeleteEventEdgeCases:
         self, temp_repo, dummy_embedder, qdrant_store
     ):
         """Test that orphaned relations are cleaned up when entities are deleted."""
-        import time
-
-        collection_name = f"test_orphan_cleanup_{int(time.time() * 1000)}"
+        collection_name = get_unique_collection_name("test_orphan_cleanup")
 
         config = IndexerConfig(
             collection_name=collection_name,

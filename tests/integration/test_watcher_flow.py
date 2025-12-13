@@ -21,6 +21,7 @@ except ImportError:
 import contextlib
 
 from claude_indexer.config import IndexerConfig
+from tests.conftest import get_unique_collection_name
 
 
 @pytest.mark.skipif(not WATCHER_AVAILABLE, reason="Watcher components not available")
@@ -31,11 +32,9 @@ class TestWatcherFlow:
 
     async def test_basic_file_watch_flow(self, temp_repo, dummy_embedder, qdrant_store):
         """Test basic file watching and re-indexing."""
-        import time
-
         from tests.conftest import verify_entity_searchable, wait_for_collection_ready
 
-        collection_name = f"test_watcher_{int(time.time() * 1000)}"
+        collection_name = get_unique_collection_name("test_watcher")
         config = IndexerConfig(
             collection_name=collection_name,
             embedder_type="dummy",
@@ -114,7 +113,7 @@ class TestWatcherFlow:
 
         from tests.conftest import verify_entity_searchable, wait_for_collection_ready
 
-        collection_name = f"test_multi_watch_{int(time.time() * 1000)}"
+        collection_name = get_unique_collection_name("test_multi_watch")
         config = IndexerConfig(
             collection_name=collection_name,
             embedder_type="dummy",
