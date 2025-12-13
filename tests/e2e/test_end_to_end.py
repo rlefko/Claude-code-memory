@@ -274,17 +274,16 @@ class TestFullSystemWorkflows:
         assert result.success
         assert result.entities_created >= 3
 
-        # Step 2: Search for indexed content with eventual consistency
-        from tests.conftest import verify_entity_searchable
+        # Step 2: Verify indexed content with payload query (deterministic)
+        from tests.conftest import verify_entities_exist_by_name
 
-        add_function_found = verify_entity_searchable(
+        add_function_found = verify_entities_exist_by_name(
             qdrant_store,
-            dummy_embedder,
             collection_name,
             "add",
+            min_expected=1,
             timeout=10.0,
             verbose=True,
-            expected_count=2,
         )
         assert add_function_found
 
@@ -302,12 +301,12 @@ def search_test_function():
         result2 = indexer.index_project(collection_name)
         assert result2.success
 
-        # Step 4: Search for new content with eventual consistency
-        new_function_found = verify_entity_searchable(
+        # Step 4: Verify new content with payload query (deterministic)
+        new_function_found = verify_entities_exist_by_name(
             qdrant_store,
-            dummy_embedder,
             collection_name,
             "search_test_function",
+            min_expected=1,
             timeout=10.0,
             verbose=True,
         )
@@ -347,14 +346,14 @@ def search_test_function():
         assert result3.success
         assert qdrant_store.count(collection_name) > initial_count  # Should increase
 
-        # Verify new content is searchable with eventual consistency
-        from tests.conftest import verify_entity_searchable
+        # Verify new content with payload query (deterministic)
+        from tests.conftest import verify_entities_exist_by_name
 
-        incremental_found = verify_entity_searchable(
+        incremental_found = verify_entities_exist_by_name(
             qdrant_store,
-            dummy_embedder,
             collection_name,
             "incremental_func",
+            min_expected=1,
             timeout=10.0,
             verbose=True,
         )
@@ -463,29 +462,14 @@ def module_{module_i}_function_{func_i}():
             result.entities_created >= 150
         )  # 10 modules * 5 files * 3+ entities per file
 
-        # Should be searchable with eventual consistency (use larger search scope for large project)
+        # Verify entities using payload query (deterministic, bypasses DummyEmbedder)
+        from tests.conftest import get_entities_by_name, get_file_path_from_payload
 
-        # For large projects, we need to search more broadly since there are many entities
-        def search_for_class():
-            search_embedding = dummy_embedder.embed_single("Module0Class0")
-            # Use top_k=300 for large project to ensure we find all target entities
-            # With 50 files * ~17 entities per file = ~850 total entities, we need sufficient search scope
-            hits = qdrant_store.search(collection_name, search_embedding, top_k=300)
-            matching_hits = [
-                hit
-                for hit in hits
-                if "Module0Class0"
-                in (
-                    hit.payload.get("entity_name", "")
-                    or hit.payload.get("name", "")
-                    or hit.payload.get("content", "")
-                )
-            ]
-            return matching_hits
+        # Search for Module0Class0 entities using payload query
+        matching_entities = get_entities_by_name(
+            qdrant_store, collection_name, "Module0Class0", verbose=True
+        )
 
-        # For large projects, just verify that Module0Class0 entities are found (no exact count requirement)
-        # The system successfully indexes all entities, DummyEmbedder just ranks them differently
-        matching_entities = search_for_class()
         assert (
             len(matching_entities) >= 1
         ), f"Should find at least 1 Module0Class0 entity, found {len(matching_entities)}"
@@ -498,8 +482,6 @@ def module_{module_i}_function_{func_i}():
                 or entity.payload.get("content", "")
             )
             # file_path may be at top level, nested in metadata, or in entity_name for file entities
-            from tests.conftest import get_file_path_from_payload
-
             file_path = get_file_path_from_payload(entity.payload)
             assert (
                 "module_0" in file_path

@@ -1130,3 +1130,74 @@ def verify_entities_exist_by_path(
             f"{min_expected}, got {actual_count}"
         )
     return False
+
+
+def verify_entities_exist_by_name(
+    qdrant_store,
+    collection_name: str,
+    entity_name: str,
+    min_expected: int = 1,
+    timeout: float = 15.0,
+    verbose: bool = False,
+) -> bool:
+    """
+    Verify that entities with a given name exist in the collection.
+
+    Uses payload-based queries for deterministic verification without
+    relying on embedding similarity. This is a drop-in replacement for
+    verify_entity_searchable that doesn't depend on DummyEmbedder.
+
+    Args:
+        qdrant_store: QdrantStore instance
+        collection_name: Name of collection to query
+        entity_name: Substring to match in entity_name or name field
+        min_expected: Minimum number of entities expected (default: 1).
+                      Use 0 to verify entities are deleted.
+        timeout: Maximum time to wait for eventual consistency
+        verbose: Print debug information
+
+    Returns:
+        True if condition is met, False if timeout
+    """
+    import time
+
+    start_time = time.time()
+    delay = 0.5
+
+    while time.time() - start_time < timeout:
+        results = get_entities_by_name(
+            qdrant_store, collection_name, entity_name, verbose=False
+        )
+        actual_count = len(results)
+
+        if verbose:
+            print(
+                f"verify_entities_exist_by_name('{entity_name}'): "
+                f"min_expected={min_expected}, actual={actual_count}"
+            )
+
+        if min_expected > 0:
+            # For existence check: at least min_expected entities
+            if actual_count >= min_expected:
+                if verbose:
+                    print(
+                        f"Found {actual_count} entities (>= {min_expected}) "
+                        f"after {time.time() - start_time:.2f}s"
+                    )
+                return True
+        else:
+            # For deletion check: exactly 0 entities
+            if actual_count == 0:
+                if verbose:
+                    print(f"Verified 0 entities after {time.time() - start_time:.2f}s")
+                return True
+
+        time.sleep(delay)
+        delay = min(delay * 1.2, 3.0)
+
+    if verbose:
+        print(
+            f"Timeout: expected {'>=' if min_expected > 0 else '=='} "
+            f"{min_expected}, got {actual_count}"
+        )
+    return False
