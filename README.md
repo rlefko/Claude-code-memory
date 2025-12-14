@@ -330,7 +330,7 @@ claude-indexer add-mcp -c my-project
 ## 🎯 Proven Results
 
 - **3.99ms** semantic search across millions of lines of code
-- **BM25 keyword search** for exact term matching (new in v2.8)
+- **BM25 keyword search** for exact term matching
 - **Hybrid search** combines semantic understanding + keyword precision
 - **90% faster** debugging with pattern memory
 - **85% cost reduction** with Voyage AI embeddings
@@ -560,7 +560,7 @@ python utils/manual_memory_backup.py restore -f backup.json      # Restore from 
 python utils/qdrant_stats.py -c my-project --detailed           # Collection health stats
 ```
 
-### Chat Analysis (v2.3+)
+### Chat Analysis
 ```bash
 claude-indexer chat index -p . -c my-project --limit 50         # Process chat history
 claude-indexer chat search "debugging patterns" -p . -c my-project  # Search chat insights
@@ -744,7 +744,7 @@ The hook system automates memory operations at key workflow points:
 | **PreToolUse** | `pre-tool-guard.sh` | Before Write/Edit/Bash | Memory Guard quality checks | < 300ms |
 | **PostToolUse** | `post-file-change.sh` | After Write/Edit | Auto-index changed files | ~100ms |
 
-### Batch Indexing (New in v2.8)
+### Batch Indexing
 
 Git hooks now use batch indexing for **4-15x faster** performance:
 
