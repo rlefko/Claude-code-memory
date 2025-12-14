@@ -16,10 +16,11 @@ from claude_indexer.config import (
 
 @pytest.fixture
 def isolated_config(tmp_path, monkeypatch):
-    """Fixture to isolate config tests from real settings.txt.
+    """Fixture to isolate config tests from real settings.txt and global config.
 
     This patches load_legacy_settings to return empty dict when called
     with the global settings.txt path, while allowing test settings files to work.
+    Also isolates from ~/.claude-indexer/config.json.
     """
     original_load_legacy = load_legacy_settings
     global_settings_path = (
@@ -45,9 +46,27 @@ def isolated_config(tmp_path, monkeypatch):
     ]:
         monkeypatch.delenv(var, raising=False)
 
-    with patch(
-        "claude_indexer.config.config_loader.load_legacy_settings",
-        mock_load_legacy_settings,
+    # Isolate from global config directory (~/.claude-indexer/)
+    fake_global_dir = tmp_path / ".claude-indexer-isolated"
+    fake_global_dir.mkdir()
+    monkeypatch.setattr(
+        "claude_indexer.config.hierarchical_loader.ConfigPaths.GLOBAL_DIR",
+        fake_global_dir,
+    )
+    monkeypatch.setattr(
+        "claude_indexer.config.hierarchical_loader.ConfigPaths.GLOBAL_CONFIG",
+        fake_global_dir / "config.json",
+    )
+
+    with (
+        patch(
+            "claude_indexer.config.config_loader.load_legacy_settings",
+            mock_load_legacy_settings,
+        ),
+        patch(
+            "claude_indexer.config.hierarchical_loader.load_legacy_settings",
+            mock_load_legacy_settings,
+        ),
     ):
         yield tmp_path
 

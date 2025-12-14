@@ -1,4 +1,25 @@
-"""Project-level configuration management."""
+"""Project-level configuration management.
+
+.. deprecated:: 1.0.0
+    This module is deprecated as of v1.0.0. Use HierarchicalConfigLoader instead.
+
+    The ConfigLoader class now delegates to HierarchicalConfigLoader internally,
+    which provides proper hierarchical configuration loading with the following
+    precedence:
+        1. Explicit overrides
+        2. Environment variables
+        3. Local overrides (.claude/settings.local.json)
+        4. Project config (.claude/settings.json or .claude-indexer/config.json)
+        5. Global config (~/.claude-indexer/config.json)
+        6. Legacy settings.txt
+        7. Defaults
+
+    This module is kept for backward compatibility but will be removed in a
+    future version. Migration path:
+        - Use ConfigLoader().load() for IndexerConfig
+        - Use load_unified_config() for UnifiedConfig
+        - Use HierarchicalConfigLoader directly for full control
+"""
 
 import json
 from pathlib import Path

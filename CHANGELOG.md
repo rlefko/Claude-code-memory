@@ -27,6 +27,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - **Version scheme reset** - Moving to semantic versioning with v1.0.0 as the first stable release
   - This marks a clean break from the inconsistent versioning history
+- **Configuration system migration (Milestone 0.1)** - Unified hierarchical configuration deployed
+  - `ConfigLoader` now delegates internally to `HierarchicalConfigLoader`
+  - Full backward compatibility maintained via `UnifiedConfig.to_indexer_config()`
+  - All 13+ consumer files work unchanged
+  - `project_config.py` marked as deprecated (kept for backward compatibility)
+
+### Configuration Precedence (v1.0.0)
+Configuration now loads from multiple sources with the following precedence:
+1. Explicit overrides (highest)
+2. Environment variables
+3. Local overrides (`.claude/settings.local.json`)
+4. Project config (`.claude/settings.json` or `.claude-indexer/config.json`)
+5. Global config (`~/.claude-indexer/config.json`)
+6. Legacy `settings.txt`
+7. Defaults (lowest)
 
 ---
 
