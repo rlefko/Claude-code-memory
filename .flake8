@@ -1,0 +1,12 @@
+[flake8]
+max-line-length = 88
+extend-ignore = E203, W503
+exclude =
+    .git,
+    .venv,
+    __pycache__,
+    node_modules,
+    qdrant_storage,
+    debug,
+    .claude-indexer,
+    code-memory-explorer

@@ -10,6 +10,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Optional
 
+from .plan_context import PlanModeContext
+
 if TYPE_CHECKING:
     from ..config.models import IndexerConfig
 
@@ -41,6 +43,7 @@ class SessionContext:
     config: Optional["IndexerConfig"] = None
     created_at: float = field(default_factory=time.time)
     last_activity: float = field(default_factory=time.time)
+    plan_mode: PlanModeContext = field(default_factory=PlanModeContext)
 
     def __post_init__(self) -> None:
         """Ensure project_path is a Path object."""
@@ -91,6 +94,7 @@ class SessionContext:
             "collection_name": self.collection_name,
             "created_at": self.created_at,
             "last_activity": self.last_activity,
+            "plan_mode": self.plan_mode.to_dict(),
         }
 
     @classmethod
@@ -108,6 +112,14 @@ class SessionContext:
         Returns:
             SessionContext instance
         """
+        # Deserialize plan_mode if present
+        plan_mode_data = data.get("plan_mode", {})
+        plan_mode = (
+            PlanModeContext.from_dict(plan_mode_data)
+            if plan_mode_data
+            else PlanModeContext()
+        )
+
         return cls(
             session_id=data["session_id"],
             project_path=Path(data["project_path"]),
@@ -115,6 +127,7 @@ class SessionContext:
             config=config,
             created_at=data.get("created_at", time.time()),
             last_activity=data.get("last_activity", time.time()),
+            plan_mode=plan_mode,
         )
 
     def __str__(self) -> str:

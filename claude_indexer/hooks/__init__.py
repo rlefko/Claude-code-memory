@@ -21,11 +21,25 @@ Milestone 3.4 adds SessionStart hook:
 - SessionStartResult: Aggregated check results
 - IndexFreshnessResult: Index staleness detection
 - run_session_start: Entry function for CLI
+
+Milestone 7.1 adds Plan Mode Detection:
+- PlanModeDetector: Detects Plan Mode from prompts
+- PlanModeDetectionResult: Detection outcome with confidence
+- detect_plan_mode: Convenience function for hook integration
 """
 
 from .fix_generator import FixSuggestion, FixSuggestionGenerator
 from .index_queue import IndexQueue
-from .post_write import PostWriteExecutor, PostWriteResult, format_findings_for_display
+from .plan_mode_detector import (
+    PlanModeDetectionResult,
+    PlanModeDetector,
+    detect_plan_mode,
+)
+from .post_write import (
+    PostWriteExecutor,
+    PostWriteResult,
+    format_findings_for_display,
+)
 from .repair_result import RepairCheckResult
 from .repair_session import RepairSession, RepairSessionManager
 from .session_start import (
@@ -68,4 +82,8 @@ __all__ = [
     "FixSuggestionGenerator",
     "RepairCheckResult",
     "run_stop_check_with_repair",
+    # Plan Mode Detection (Milestone 7.1)
+    "PlanModeDetector",
+    "PlanModeDetectionResult",
+    "detect_plan_mode",
 ]
