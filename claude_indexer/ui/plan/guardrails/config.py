@@ -70,6 +70,15 @@ class PlanGuardrailConfig(BaseModel):
         default=10, ge=1, le=100, description="Maximum findings per rule"
     )
 
+    # Thoroughness level for output (Milestone 13.4.5)
+    thoroughness_level: str = Field(
+        default="standard",
+        description="Output detail level: minimal, standard, thorough, exhaustive",
+    )
+    group_findings_by_severity: bool = Field(
+        default=True, description="Group findings by severity in output"
+    )
+
     class Config:
         extra = "allow"
 
