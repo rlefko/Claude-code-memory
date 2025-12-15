@@ -16,7 +16,38 @@ Milestone 7.2: Hook Infrastructure Extension
 import re
 import time
 from dataclasses import dataclass, field
+from functools import lru_cache
 from typing import Any
+
+
+# Module-level LRU cache for entity extraction (max 128 prompts)
+@lru_cache(maxsize=128)
+def _cached_extract_entities(prompt: str) -> tuple[str, ...]:
+    """Cache-friendly entity extraction.
+
+    Returns tuple for hashability (required by lru_cache).
+    """
+    entities: set[str] = set()
+
+    # CamelCase
+    for match in ExplorationHintsGenerator.CAMEL_CASE.findall(prompt):
+        entities.add(match)
+
+    # snake_case
+    for match in ExplorationHintsGenerator.SNAKE_CASE.findall(prompt):
+        entities.add(match)
+
+    # Quoted terms (filter short ones)
+    for match in ExplorationHintsGenerator.QUOTED_TERMS.findall(prompt):
+        if len(match) > 2:
+            entities.add(match)
+
+    # Technical terms
+    for match in ExplorationHintsGenerator.TECHNICAL_TERMS.findall(prompt):
+        entities.add(match.lower())
+
+    # Convert to tuple and limit to 10
+    return tuple(list(entities)[:10])
 
 
 @dataclass
@@ -163,7 +194,7 @@ class ExplorationHintsGenerator:
         Returns:
             ExplorationHints with extracted entities and suggested commands
         """
-        start_time = time.time()
+        start_time = time.perf_counter()
 
         entities = self._extract_entities(prompt)
         hints: list[str] = []
@@ -190,7 +221,7 @@ class ExplorationHintsGenerator:
                 hints.append(hint)
                 mcp_commands.append(cmd)
 
-        generation_time_ms = (time.time() - start_time) * 1000
+        generation_time_ms = (time.perf_counter() - start_time) * 1000
 
         return ExplorationHints(
             hints=hints,
@@ -208,33 +239,16 @@ class ExplorationHintsGenerator:
         3. Quoted terms (e.g., "login", 'authentication')
         4. Technical terms (e.g., api, database, middleware)
 
+        Uses caching for repeated prompts.
+
         Args:
             prompt: User prompt text
 
         Returns:
             List of extracted entities, deduplicated and limited to 10
         """
-        entities: set[str] = set()
-
-        # CamelCase
-        for match in self.CAMEL_CASE.findall(prompt):
-            entities.add(match)
-
-        # snake_case
-        for match in self.SNAKE_CASE.findall(prompt):
-            entities.add(match)
-
-        # Quoted terms (filter short ones)
-        for match in self.QUOTED_TERMS.findall(prompt):
-            if len(match) > 2:
-                entities.add(match)
-
-        # Technical terms
-        for match in self.TECHNICAL_TERMS.findall(prompt):
-            entities.add(match.lower())
-
-        # Convert to list and limit
-        return list(entities)[:10]
+        # Use cached extraction and convert back to list
+        return list(_cached_extract_entities(prompt))
 
     def _generate_duplicate_hint(self, entity: str) -> tuple[str, str]:
         """Generate duplicate check hint.

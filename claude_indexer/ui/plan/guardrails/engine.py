@@ -301,7 +301,7 @@ class PlanGuardrailEngine:
         Returns:
             PlanGuardrailResult with all findings and statistics.
         """
-        start_time = time.time()
+        start_time = time.perf_counter()
 
         # Determine which rules to run
         if rule_ids is not None:
@@ -333,7 +333,7 @@ class PlanGuardrailEngine:
                 all_findings.extend(filtered)
 
         # Calculate total execution time
-        total_time_ms = (time.time() - start_time) * 1000
+        total_time_ms = (time.perf_counter() - start_time) * 1000
 
         return PlanGuardrailResult(
             findings=all_findings,
@@ -389,11 +389,11 @@ class PlanGuardrailEngine:
         Returns:
             RuleExecutionResult with findings or error.
         """
-        start_time = time.time()
+        start_time = time.perf_counter()
 
         try:
             findings = rule.validate(context)
-            execution_time_ms = (time.time() - start_time) * 1000
+            execution_time_ms = (time.perf_counter() - start_time) * 1000
 
             return RuleExecutionResult(
                 rule_id=rule.rule_id,
@@ -402,7 +402,7 @@ class PlanGuardrailEngine:
             )
 
         except Exception as e:
-            execution_time_ms = (time.time() - start_time) * 1000
+            execution_time_ms = (time.perf_counter() - start_time) * 1000
 
             if not self.engine_config.continue_on_error:
                 raise

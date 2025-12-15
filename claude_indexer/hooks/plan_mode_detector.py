@@ -136,30 +136,30 @@ class PlanModeDetector:
         Returns:
             PlanModeDetectionResult with detection outcome
         """
-        start_time = time.time()
+        start_time = time.perf_counter()
 
         # Check explicit markers first (highest confidence)
         result = self._check_explicit_markers(prompt)
         if result.is_plan_mode:
-            result.detection_time_ms = (time.time() - start_time) * 1000
+            result.detection_time_ms = (time.perf_counter() - start_time) * 1000
             return result
 
         # Check environment variable
         result = self._check_environment_variable()
         if result.is_plan_mode:
-            result.detection_time_ms = (time.time() - start_time) * 1000
+            result.detection_time_ms = (time.perf_counter() - start_time) * 1000
             return result
 
         # Check planning keywords with confidence
         result = self._check_planning_keywords(prompt)
         if result.is_plan_mode:
-            result.detection_time_ms = (time.time() - start_time) * 1000
+            result.detection_time_ms = (time.perf_counter() - start_time) * 1000
             return result
 
         # Check session persistence (Plan Mode active from previous turn)
         result = self._check_session_persistence()
         if result.is_plan_mode:
-            result.detection_time_ms = (time.time() - start_time) * 1000
+            result.detection_time_ms = (time.perf_counter() - start_time) * 1000
             return result
 
         # No Plan Mode detected
@@ -168,7 +168,7 @@ class PlanModeDetector:
             confidence=0.0,
             reasoning="No Plan Mode indicators detected",
         )
-        result.detection_time_ms = (time.time() - start_time) * 1000
+        result.detection_time_ms = (time.perf_counter() - start_time) * 1000
         return result
 
     def _check_explicit_markers(self, prompt: str) -> PlanModeDetectionResult:

@@ -283,7 +283,7 @@ class PlanQAVerifier:
         if not self.config.enabled:
             return PlanQAResult(is_valid=True)
 
-        start_time = time.time()
+        start_time = time.perf_counter()
         result = PlanQAResult()
 
         # Run all checks
@@ -305,7 +305,7 @@ class PlanQAVerifier:
         # Add suggestions
         self._add_suggestions(result)
 
-        result.verification_time_ms = (time.time() - start_time) * 1000
+        result.verification_time_ms = (time.perf_counter() - start_time) * 1000
         return result
 
     def _check_test_coverage(self, plan_text: str, result: PlanQAResult) -> None:
