@@ -590,7 +590,7 @@ class PlanValidationRule(ABC):
 |----|------|----------|--------|
 | 9.2.1 | Create `PlanGuardrailEngine` coordinator class | HIGH | DONE |
 | 9.2.2 | Implement rule discovery (auto-load from directory) | HIGH | DONE |
-| 9.2.3 | Add parallel rule execution support | MEDIUM | DEFERRED |
+| 9.2.3 | Add parallel rule execution support | MEDIUM | DONE |
 | 9.2.4 | Implement severity filtering | MEDIUM | DONE |
 | 9.2.5 | Create `PlanGuardrailResult` aggregation | MEDIUM | DONE |
 | 9.2.6 | Add performance timing for rules | LOW | DONE |
@@ -626,13 +626,13 @@ class PlanGuardrailEngine:
 
 **Testing Requirements**:
 - [x] Test rule discovery
-- [ ] Test parallel execution (DEFERRED: flag added, implementation pending)
+- [x] Test parallel execution (Milestone 13.5)
 - [x] Test severity filtering
 - [x] Benchmark validation latency
 
 **Success Criteria**:
 - [x] Rules auto-discovered from directory
-- [ ] Parallel execution reduces latency (DEFERRED: sequential first)
+- [x] Parallel execution reduces latency (Milestone 13.5)
 - [x] <500ms total validation time
 
 **Implementation Details** (Milestone 9.2 Complete):
@@ -652,6 +652,14 @@ class PlanGuardrailEngine:
   - Error handling with continue_on_error option
   - Performance timing recorded per rule and total
 - Tests: 42 unit tests covering all functionality
+
+**Parallel Execution (Milestone 13.5)**:
+- Added `parallel_execution` flag to `PlanGuardrailEngineConfig` (default: False)
+- Added `max_parallel_workers` config option (default: 4)
+- Implemented `_validate_parallel()` using ThreadPoolExecutor
+- Extracted `_validate_sequential()` for the original behavior
+- `validate()` method now conditionally uses parallel or sequential execution
+- Tests: 8 additional tests for parallel execution behavior
 
 ---
 
@@ -1247,7 +1255,7 @@ class PlanQAVerifier:
 |----|------|----------|--------|
 | 12.2.1 | Add QA check after guardrail validation | HIGH | DONE |
 | 12.2.2 | Append QA feedback to plan output | HIGH | DONE |
-| 12.2.3 | Track QA pass/fail metrics | LOW | DEFERRED |
+| 12.2.3 | Track QA pass/fail metrics | LOW | DONE |
 | 12.2.4 | Add QA override configuration | LOW | DONE |
 
 **Testing Requirements**:
@@ -1257,7 +1265,7 @@ class PlanQAVerifier:
 
 **Success Criteria**:
 - [x] QA feedback visible to user
-- [ ] Metrics tracked for analysis (DEFERRED)
+- [x] Metrics tracked for analysis (Milestone 13.5)
 - [x] Override available for edge cases
 
 **Implementation Details** (Milestone 12.2 Complete):
@@ -1270,7 +1278,15 @@ class PlanQAVerifier:
   - enabled: Master toggle for QA
   - check_tests/check_docs/check_duplicates/check_architecture: Individual checks
   - fail_on_missing_tests/fail_on_missing_docs: Strict mode settings
-- Task 12.2.3 (metrics) deferred for future enhancement
+
+**QA Metrics Tracking (Milestone 13.5)**:
+- Added QA fields to `MetricSnapshot` in `claude_indexer/ui/metrics/models.py`:
+  - qa_checks_passed, qa_issues_found, qa_missing_tests, qa_missing_docs
+  - qa_potential_duplicates, qa_architecture_warnings, qa_verification_time_ms
+- Added `record_qa_verification()` method to `MetricsCollector`
+- Added `get_qa_metrics_summary()` for aggregated QA metrics
+- Updated `PlanQAVerifier` with optional `metrics_collector` parameter
+- Tests: 15 unit tests in test_qa_metrics.py
 
 ---
 
@@ -1505,6 +1521,64 @@ docs/
 - [x] All code implementation complete
 - [ ] User feedback collection enabled (infrastructure ready)
 - [ ] UX validated through testing (pending task 13.4.1)
+
+---
+
+### Milestone 13.5: Deferred Items Completion ✅ DONE
+
+**Objective**: Complete deferred items from Phases 9 and 12.
+
+#### Tasks
+
+| ID | Task | Priority | Status |
+|----|------|----------|--------|
+| 13.5.1 | Implement parallel rule execution (9.2.3) | MEDIUM | DONE |
+| 13.5.2 | Implement QA metrics tracking (12.2.3) | LOW | DONE |
+| 13.5.3 | Update Ticket Sync Service notes | LOW | DONE |
+
+**Implementation Details** (Milestone 13.5 Complete):
+
+**Parallel Rule Execution (9.2.3)**:
+- Updated `PlanGuardrailEngineConfig` with `max_parallel_workers` (default: 4)
+- Added `_validate_parallel()` method using `concurrent.futures.ThreadPoolExecutor`
+- Added `_validate_sequential()` method (refactored from original code)
+- Modified `validate()` to conditionally use parallel or sequential execution
+- Parallel mode executes rules concurrently with configurable worker count
+- Error handling preserved in parallel mode (continue_on_error behavior)
+- Tests: 8 tests for parallel execution behavior
+
+**QA Metrics Tracking (12.2.3)**:
+- Extended `MetricSnapshot` with 7 QA-specific fields:
+  - `qa_checks_passed`, `qa_issues_found`, `qa_missing_tests`
+  - `qa_missing_docs`, `qa_potential_duplicates`, `qa_architecture_warnings`
+  - `qa_verification_time_ms`
+- Added `record_qa_verification()` to `MetricsCollector`:
+  - Creates MetricSnapshot from PlanQAResult
+  - Calculates checks passed/failed counts
+  - Records as tier 2 (design-time) snapshot
+- Added `get_qa_metrics_summary()` to `MetricsCollector`:
+  - Returns pass rate, average issues, issue breakdown
+  - Aggregates across all QA verification snapshots
+- Updated `PlanQAVerifier` with optional `metrics_collector` parameter:
+  - Records metrics automatically after verification
+  - Accepts optional `plan_id` for correlation
+- Backward compatible: old snapshots without QA fields load with defaults
+- Tests: 15 tests for QA metrics functionality
+
+**Ticket Sync Service (8.3.9)** - Deferred to Phase 14:
+- Remains deferred due to complexity (new scheduler, Qdrant schema, sync state)
+- Recommended for dedicated Phase 14: Background Services
+- Current on-demand ticket fetching via MCP tools remains functional
+
+**Files Modified**:
+- `claude_indexer/ui/plan/guardrails/engine.py` - Parallel execution
+- `claude_indexer/ui/metrics/models.py` - QA fields in MetricSnapshot
+- `claude_indexer/ui/metrics/collector.py` - QA metrics methods
+- `claude_indexer/hooks/plan_qa.py` - Metrics integration
+
+**Test Coverage**:
+- `tests/unit/ui/plan/guardrails/test_engine.py` - 8 parallel execution tests
+- `tests/unit/ui/metrics/test_qa_metrics.py` - 15 QA metrics tests
 
 ---
 

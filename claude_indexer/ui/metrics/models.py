@@ -51,6 +51,15 @@ class MetricSnapshot:
     commit_hash: str | None = None
     branch_name: str | None = None
 
+    # Plan QA metrics (Milestone 12.2.3)
+    qa_checks_passed: int = 0
+    qa_issues_found: int = 0
+    qa_missing_tests: int = 0
+    qa_missing_docs: int = 0
+    qa_potential_duplicates: int = 0
+    qa_architecture_warnings: int = 0
+    qa_verification_time_ms: float = 0.0
+
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for JSON serialization."""
         return {
@@ -73,6 +82,14 @@ class MetricSnapshot:
             "cache_hit_rate": self.cache_hit_rate,
             "commit_hash": self.commit_hash,
             "branch_name": self.branch_name,
+            # Plan QA metrics (Milestone 12.2.3)
+            "qa_checks_passed": self.qa_checks_passed,
+            "qa_issues_found": self.qa_issues_found,
+            "qa_missing_tests": self.qa_missing_tests,
+            "qa_missing_docs": self.qa_missing_docs,
+            "qa_potential_duplicates": self.qa_potential_duplicates,
+            "qa_architecture_warnings": self.qa_architecture_warnings,
+            "qa_verification_time_ms": self.qa_verification_time_ms,
         }
 
     @classmethod
@@ -98,6 +115,14 @@ class MetricSnapshot:
             cache_hit_rate=data.get("cache_hit_rate", 0.0),
             commit_hash=data.get("commit_hash"),
             branch_name=data.get("branch_name"),
+            # Plan QA metrics (Milestone 12.2.3) - defaults for backward compat
+            qa_checks_passed=data.get("qa_checks_passed", 0),
+            qa_issues_found=data.get("qa_issues_found", 0),
+            qa_missing_tests=data.get("qa_missing_tests", 0),
+            qa_missing_docs=data.get("qa_missing_docs", 0),
+            qa_potential_duplicates=data.get("qa_potential_duplicates", 0),
+            qa_architecture_warnings=data.get("qa_architecture_warnings", 0),
+            qa_verification_time_ms=data.get("qa_verification_time_ms", 0.0),
         )
 
 

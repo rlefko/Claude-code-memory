@@ -29,8 +29,10 @@ class PlanGuardrailEngineConfig:
     continue_on_error: bool = True
     # Minimum confidence to include findings
     min_confidence: float = 0.7
-    # Future: enable parallel rule execution
+    # Enable parallel rule execution using ThreadPoolExecutor
     parallel_execution: bool = False
+    # Maximum concurrent worker threads for parallel execution
+    max_parallel_workers: int = 4
 
 
 @dataclass
@@ -359,27 +361,26 @@ class PlanGuardrailEngine:
         else:
             rules_to_run = list(self._rules.values())
 
-        # Execute rules and collect findings
+        # Execute rules (parallel or sequential based on config)
+        if self.engine_config.parallel_execution:
+            execution_results, rules_executed, rules_skipped = self._validate_parallel(
+                context, rules_to_run
+            )
+        else:
+            execution_results, rules_executed, rules_skipped = (
+                self._validate_sequential(context, rules_to_run)
+            )
+
+        # Aggregate results from all executed rules
         all_findings: list[PlanValidationFinding] = []
         errors: list[tuple[str, str]] = []
-        rules_executed = 0
-        rules_skipped = 0
 
-        for rule in rules_to_run:
-            # Check if rule is enabled via config
-            if not context.config.is_rule_enabled(rule.rule_id, rule.category):
-                rules_skipped += 1
-                continue
-
-            # Execute rule with timing and error handling
-            result = self._execute_rule(rule, context)
-            rules_executed += 1
-
+        for result in execution_results:
             if result.error:
-                errors.append((rule.rule_id, result.error))
+                errors.append((result.rule_id, result.error))
             else:
                 # Filter findings by confidence and max findings
-                filtered = self._filter_findings(result.findings, rule.rule_id)
+                filtered = self._filter_findings(result.findings, result.rule_id)
                 all_findings.extend(filtered)
 
         # Calculate total execution time
@@ -463,6 +464,82 @@ class PlanGuardrailEngine:
                 execution_time_ms=execution_time_ms,
                 error=str(e),
             )
+
+    def _validate_sequential(
+        self,
+        context: PlanValidationContext,
+        rules_to_run: list[PlanValidationRule],
+    ) -> tuple[list[RuleExecutionResult], int, int]:
+        """Execute rules sequentially.
+
+        Args:
+            context: Validation context.
+            rules_to_run: List of rules to execute.
+
+        Returns:
+            Tuple of (results, rules_executed, rules_skipped).
+        """
+        results: list[RuleExecutionResult] = []
+        rules_executed = 0
+        rules_skipped = 0
+
+        for rule in rules_to_run:
+            # Check if rule is enabled via config
+            if not context.config.is_rule_enabled(rule.rule_id, rule.category):
+                rules_skipped += 1
+                continue
+
+            # Execute rule with timing and error handling
+            result = self._execute_rule(rule, context)
+            results.append(result)
+            rules_executed += 1
+
+        return results, rules_executed, rules_skipped
+
+    def _validate_parallel(
+        self,
+        context: PlanValidationContext,
+        rules_to_run: list[PlanValidationRule],
+    ) -> tuple[list[RuleExecutionResult], int, int]:
+        """Execute rules in parallel using ThreadPoolExecutor.
+
+        Args:
+            context: Validation context.
+            rules_to_run: List of rules to execute.
+
+        Returns:
+            Tuple of (results, rules_executed, rules_skipped).
+        """
+        from concurrent.futures import ThreadPoolExecutor, as_completed
+
+        results: list[RuleExecutionResult] = []
+        rules_executed = 0
+        rules_skipped = 0
+
+        # Filter enabled rules first
+        enabled_rules: list[PlanValidationRule] = []
+        for rule in rules_to_run:
+            if context.config.is_rule_enabled(rule.rule_id, rule.category):
+                enabled_rules.append(rule)
+            else:
+                rules_skipped += 1
+
+        # Execute enabled rules in parallel
+        if enabled_rules:
+            max_workers = min(
+                self.engine_config.max_parallel_workers, len(enabled_rules)
+            )
+            with ThreadPoolExecutor(max_workers=max_workers) as executor:
+                future_to_rule = {
+                    executor.submit(self._execute_rule, rule, context): rule
+                    for rule in enabled_rules
+                }
+                for future in as_completed(future_to_rule):
+                    result = future.result()
+                    results.append(result)
+                    rules_executed += 1
+
+        return results, rules_executed, rules_skipped
 
     def _filter_findings(
         self,

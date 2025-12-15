@@ -18,7 +18,10 @@ Milestone 12.1: Plan QA Verifier
 import re
 import time
 from dataclasses import dataclass, field
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from claude_indexer.ui.metrics.collector import MetricsCollector
 
 
 @dataclass
@@ -263,19 +266,31 @@ class PlanQAVerifier:
         re.IGNORECASE,
     )
 
-    def __init__(self, config: PlanQAConfig | None = None):
+    def __init__(
+        self,
+        config: PlanQAConfig | None = None,
+        metrics_collector: "MetricsCollector | None" = None,
+    ):
         """Initialize the verifier.
 
         Args:
             config: Optional configuration
+            metrics_collector: Optional metrics collector for tracking QA metrics
+                              (Milestone 12.2.3)
         """
         self.config = config or PlanQAConfig()
+        self._metrics_collector = metrics_collector
 
-    def verify_plan(self, plan_text: str) -> PlanQAResult:
+    def verify_plan(
+        self,
+        plan_text: str,
+        plan_id: str | None = None,
+    ) -> PlanQAResult:
         """Verify a plan meets quality standards.
 
         Args:
             plan_text: The plan text to verify
+            plan_id: Optional plan ID for metrics correlation
 
         Returns:
             PlanQAResult with all findings and feedback
@@ -306,6 +321,11 @@ class PlanQAVerifier:
         self._add_suggestions(result)
 
         result.verification_time_ms = (time.perf_counter() - start_time) * 1000
+
+        # Record metrics if collector configured (Milestone 12.2.3)
+        if self._metrics_collector is not None:
+            self._metrics_collector.record_qa_verification(result, plan_id)
+
         return result
 
     def _check_test_coverage(self, plan_text: str, result: PlanQAResult) -> None:
