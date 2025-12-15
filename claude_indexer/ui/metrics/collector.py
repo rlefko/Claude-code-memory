@@ -208,6 +208,120 @@ class MetricsCollector:
 
         return False
 
+    # Plan feedback methods (Milestone 13.4.2, 13.4.3)
+    def record_plan_approval(
+        self,
+        plan_id: str,
+        approved: bool,
+        rejection_reason: str | None = None,
+        accuracy_rating: int | None = None,
+        user_notes: str | None = None,
+    ) -> bool:
+        """Record user approval or rejection of a plan.
+
+        Args:
+            plan_id: ID of the plan to update.
+            approved: True if approved, False if rejected.
+            rejection_reason: Optional reason if rejected.
+            accuracy_rating: Optional 1-5 rating of plan accuracy.
+            user_notes: Optional freeform feedback.
+
+        Returns:
+            True if plan was found and updated, False otherwise.
+        """
+        report = self.load()
+
+        for record in report.plan_records:
+            if record.plan_id == plan_id:
+                record.approved = approved
+                record.approved_at = datetime.now().isoformat()
+                if not approved and rejection_reason:
+                    record.rejection_reason = rejection_reason
+                if accuracy_rating is not None:
+                    # Clamp to 1-5 range
+                    record.accuracy_rating = max(1, min(5, accuracy_rating))
+                if user_notes:
+                    record.user_notes = user_notes
+                self._report = report
+                return True
+
+        return False
+
+    def record_plan_revision(self, plan_id: str) -> bool:
+        """Increment revision count for a plan.
+
+        Called when auto-revision modifies a plan before approval.
+
+        Args:
+            plan_id: ID of the plan to update.
+
+        Returns:
+            True if plan was found and updated, False otherwise.
+        """
+        report = self.load()
+
+        for record in report.plan_records:
+            if record.plan_id == plan_id:
+                record.revision_count += 1
+                self._report = report
+                return True
+
+        return False
+
+    def get_approval_rate_history(self, days: int = 30) -> list[tuple[str, float]]:
+        """Get daily approval rates for trend analysis.
+
+        Args:
+            days: Number of days of history to return.
+
+        Returns:
+            List of (date_string, approval_rate) tuples.
+        """
+        from collections import defaultdict
+        from datetime import timedelta
+
+        report = self.load()
+
+        # Group records by date
+        by_date: defaultdict[str, list[PlanAdoptionRecord]] = defaultdict(list)
+        cutoff = datetime.now() - timedelta(days=days)
+
+        for record in report.plan_records:
+            if record.approved_at:
+                dt = datetime.fromisoformat(record.approved_at)
+                if dt >= cutoff:
+                    date_str = dt.strftime("%Y-%m-%d")
+                    by_date[date_str].append(record)
+
+        # Calculate daily approval rates
+        result: list[tuple[str, float]] = []
+        for date_str in sorted(by_date.keys()):
+            records = by_date[date_str]
+            decided = [r for r in records if r.approved is not None]
+            if decided:
+                rate = sum(1 for r in decided if r.approved) / len(decided)
+                result.append((date_str, rate))
+
+        return result
+
+    def get_quality_metrics_summary(self) -> dict[str, any]:
+        """Get summary of plan quality metrics for reporting.
+
+        Returns:
+            Dict with approval rate, accuracy rating, revision stats.
+        """
+        report = self.load()
+
+        return {
+            "total_plans": len(report.plan_records),
+            "approval_rate": report.approval_rate,
+            "pending_approval": report.pending_approval_count,
+            "average_accuracy_rating": report.average_accuracy_rating,
+            "average_revisions": report.average_revision_count,
+            "adoption_rate": report.plan_adoption_rate,
+            "rejection_reasons": report.rejection_reasons_summary(),
+        }
+
     def get_git_context(self) -> tuple[str | None, str | None]:
         """Get current git commit hash and branch name.
 

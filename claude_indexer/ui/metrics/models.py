@@ -144,7 +144,8 @@ class PerformancePercentiles:
 class PlanAdoptionRecord:
     """Record of /redesign plan adoption.
 
-    Tracks which generated plans led to completed work.
+    Tracks which generated plans led to completed work, including
+    user feedback on plan quality and approval status.
     """
 
     plan_id: str
@@ -152,6 +153,14 @@ class PlanAdoptionRecord:
     total_tasks: int
     completed_tasks: int = 0
     completed_at: str | None = None  # ISO format when marked complete
+
+    # User feedback fields (Milestone 13.4.2)
+    approved: bool | None = None  # None=pending, True=approved, False=rejected
+    approved_at: str | None = None  # ISO timestamp when user approved/rejected
+    rejection_reason: str | None = None  # Optional reason if rejected
+    accuracy_rating: int | None = None  # 1-5 scale, None if not rated
+    user_notes: str | None = None  # Optional freeform feedback
+    revision_count: int = 0  # Number of times plan was revised before approval
 
     @property
     def adoption_rate(self) -> float:
@@ -173,6 +182,13 @@ class PlanAdoptionRecord:
             "total_tasks": self.total_tasks,
             "completed_tasks": self.completed_tasks,
             "completed_at": self.completed_at,
+            # User feedback fields
+            "approved": self.approved,
+            "approved_at": self.approved_at,
+            "rejection_reason": self.rejection_reason,
+            "accuracy_rating": self.accuracy_rating,
+            "user_notes": self.user_notes,
+            "revision_count": self.revision_count,
         }
 
     @classmethod
@@ -184,6 +200,13 @@ class PlanAdoptionRecord:
             total_tasks=data["total_tasks"],
             completed_tasks=data.get("completed_tasks", 0),
             completed_at=data.get("completed_at"),
+            # User feedback fields with defaults for backward compatibility
+            approved=data.get("approved"),
+            approved_at=data.get("approved_at"),
+            rejection_reason=data.get("rejection_reason"),
+            accuracy_rating=data.get("accuracy_rating"),
+            user_notes=data.get("user_notes"),
+            revision_count=data.get("revision_count", 0),
         )
 
 
@@ -331,6 +354,58 @@ class MetricsReport:
         if total_tasks == 0:
             return 0.0
         return completed_tasks / total_tasks
+
+    # Plan approval metrics (Milestone 13.4.3)
+    @property
+    def approval_rate(self) -> float:
+        """Calculate plan approval rate (approved / total with decision).
+
+        Returns:
+            Approval rate as a float between 0.0 and 1.0.
+        """
+        decided = [r for r in self.plan_records if r.approved is not None]
+        if not decided:
+            return 0.0
+        approved_count = sum(1 for r in decided if r.approved)
+        return approved_count / len(decided)
+
+    @property
+    def pending_approval_count(self) -> int:
+        """Count of plans pending user approval."""
+        return sum(1 for r in self.plan_records if r.approved is None)
+
+    @property
+    def average_accuracy_rating(self) -> float | None:
+        """Calculate average accuracy rating from user feedback.
+
+        Returns:
+            Average rating (1-5) or None if no ratings recorded.
+        """
+        rated = [r.accuracy_rating for r in self.plan_records if r.accuracy_rating]
+        if not rated:
+            return None
+        return sum(rated) / len(rated)
+
+    @property
+    def average_revision_count(self) -> float:
+        """Calculate average revisions before approval."""
+        approved = [r for r in self.plan_records if r.approved]
+        if not approved:
+            return 0.0
+        return sum(r.revision_count for r in approved) / len(approved)
+
+    def rejection_reasons_summary(self) -> dict[str, int]:
+        """Summarize rejection reasons by count.
+
+        Returns:
+            Dict mapping rejection reason to count.
+        """
+        reasons: dict[str, int] = {}
+        for record in self.plan_records:
+            if not record.approved and record.rejection_reason:
+                reason = record.rejection_reason.lower().strip()
+                reasons[reason] = reasons.get(reason, 0) + 1
+        return reasons
 
     @property
     def snapshot_count(self) -> int:

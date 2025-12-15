@@ -8,6 +8,13 @@ Includes guardrails subpackage for plan validation and
 quality checks.
 """
 
+from .formatters import (
+    CATEGORY_NAMES,
+    SEVERITY_ICONS,
+    ThoroughnessLevel,
+    format_plan_findings_for_claude,
+    format_plan_findings_for_display,
+)
 from .generator import PlanGenerator
 from .guardrails import (
     PlanGuardrailConfig,
@@ -43,4 +50,10 @@ __all__ = [
     "PlanPersistence",
     "PlanSnapshot",
     "RevisionHistoryManager",
+    # Formatters (Milestone 13.4)
+    "ThoroughnessLevel",
+    "format_plan_findings_for_display",
+    "format_plan_findings_for_claude",
+    "SEVERITY_ICONS",
+    "CATEGORY_NAMES",
 ]

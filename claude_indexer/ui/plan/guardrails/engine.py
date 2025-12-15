@@ -117,6 +117,56 @@ class PlanGuardrailResult:
             "has_blocking_findings": self.has_blocking_findings,
         }
 
+    def format_for_display(
+        self,
+        config: "PlanGuardrailConfig | None" = None,
+    ) -> str:
+        """Format findings for human-readable display.
+
+        Args:
+            config: Optional config for thoroughness level.
+
+        Returns:
+            Formatted string.
+        """
+        from ..formatters import ThoroughnessLevel, format_plan_findings_for_display
+
+        thoroughness = ThoroughnessLevel.STANDARD
+        group_by_severity = True
+
+        if config:
+            thoroughness = ThoroughnessLevel(config.thoroughness_level)
+            group_by_severity = config.group_findings_by_severity
+
+        return format_plan_findings_for_display(
+            self.findings,
+            thoroughness=thoroughness,
+            group_by_severity=group_by_severity,
+        )
+
+    def format_for_claude(
+        self,
+        config: "PlanGuardrailConfig | None" = None,
+    ) -> str:
+        """Format findings for Claude consumption.
+
+        Args:
+            config: Optional config for thoroughness level.
+
+        Returns:
+            Formatted string.
+        """
+        from ..formatters import ThoroughnessLevel, format_plan_findings_for_claude
+
+        thoroughness = ThoroughnessLevel.THOROUGH
+        if config:
+            thoroughness = ThoroughnessLevel(config.thoroughness_level)
+
+        return format_plan_findings_for_claude(
+            self.findings,
+            thoroughness=thoroughness,
+        )
+
 
 class PlanGuardrailEngine:
     """Engine for running plan validation guardrail rules.
