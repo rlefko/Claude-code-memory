@@ -12,6 +12,9 @@ Classes:
     RevisionType: Types of plan revisions
     PlanGuardrailConfig: Configuration for guardrails
     RuleConfig: Configuration for individual rules
+    PlanGuardrailEngine: Engine for orchestrating rule validation
+    PlanGuardrailEngineConfig: Configuration for the engine
+    PlanGuardrailResult: Aggregated validation results
 """
 
 from .base import (
@@ -24,6 +27,13 @@ from .base import (
     Severity,
 )
 from .config import PlanGuardrailConfig, RuleConfig
+from .engine import (
+    PlanGuardrailEngine,
+    PlanGuardrailEngineConfig,
+    PlanGuardrailResult,
+    RuleExecutionResult,
+    create_guardrail_engine,
+)
 
 __all__ = [
     # Enums
@@ -34,8 +44,14 @@ __all__ = [
     "PlanRevision",
     "PlanValidationContext",
     "PlanValidationFinding",
+    "RuleExecutionResult",
+    "PlanGuardrailResult",
     # Base rule class
     "PlanValidationRule",
+    # Engine
+    "PlanGuardrailEngine",
+    "PlanGuardrailEngineConfig",
+    "create_guardrail_engine",
     # Configuration
     "PlanGuardrailConfig",
     "RuleConfig",
