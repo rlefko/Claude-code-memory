@@ -15,6 +15,9 @@ Classes:
     PlanGuardrailEngine: Engine for orchestrating rule validation
     PlanGuardrailEngineConfig: Configuration for the engine
     PlanGuardrailResult: Aggregated validation results
+    AutoRevisionEngine: Engine for applying auto-revisions to plans
+    AppliedRevision: Record of applied revision
+    RevisedPlan: Result of auto-revision process
 
 Rules:
     TestRequirementRule: Ensures features have test tasks
@@ -24,6 +27,12 @@ Rules:
     PerformancePatternRule: Flags performance anti-patterns
 """
 
+from .auto_revision import (
+    AppliedRevision,
+    AutoRevisionEngine,
+    RevisedPlan,
+    create_auto_revision_engine,
+)
 from .base import (
     Evidence,
     PlanRevision,
@@ -54,17 +63,21 @@ __all__ = [
     "RevisionType",
     "Severity",
     # Data classes
+    "AppliedRevision",
     "Evidence",
     "PlanRevision",
     "PlanValidationContext",
     "PlanValidationFinding",
+    "RevisedPlan",
     "RuleExecutionResult",
     "PlanGuardrailResult",
     # Base rule class
     "PlanValidationRule",
-    # Engine
+    # Engines
+    "AutoRevisionEngine",
     "PlanGuardrailEngine",
     "PlanGuardrailEngineConfig",
+    "create_auto_revision_engine",
     "create_guardrail_engine",
     # Configuration
     "PlanGuardrailConfig",
