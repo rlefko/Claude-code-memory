@@ -148,9 +148,7 @@ class TestPlanContextInjector:
     def test_total_latency_under_50ms(self):
         """Total injection should complete in under 50ms."""
         injector = PlanContextInjector(collection_name="test")
-        result = injector.inject(
-            "Implement complex authentication with OAuth and JWT"
-        )
+        result = injector.inject("Implement complex authentication with OAuth and JWT")
 
         assert result.total_time_ms < 50
 
@@ -289,7 +287,10 @@ class TestInjectorIntegration:
 
         # Verify hints
         assert "EXPLORATION HINTS" in result.injected_text
-        assert "UserService" in result.injected_text or "AuthController" in result.injected_text
+        assert (
+            "UserService" in result.injected_text
+            or "AuthController" in result.injected_text
+        )
 
         # Verify MCP prefix
         assert "mcp__integration-test-memory__" in result.injected_text

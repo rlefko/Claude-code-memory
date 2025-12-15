@@ -75,7 +75,7 @@ class TestExplorationHintsGenerator:
     def test_extracts_quoted_terms(self):
         """Should extract quoted terms from prompt."""
         generator = ExplorationHintsGenerator(collection_name="test")
-        hints = generator.generate('Implement the "login flow" and \'logout\' feature')
+        hints = generator.generate("Implement the \"login flow\" and 'logout' feature")
 
         assert "login flow" in hints.extracted_entities
         assert "logout" in hints.extracted_entities
