@@ -107,6 +107,146 @@ Check `mcp__project-memory__search_similar("error description", entityTypes=["de
 
 ---
 
+### Plan Mode Context Injection (Milestone 7.2)
+
+**Trigger**: When Plan Mode is detected via `UserPromptSubmit`
+
+**Purpose**:
+- Inject planning guidelines to improve plan quality
+- Generate exploration hints for code discovery
+- Ensure plans include testing and documentation tasks
+- Guide Claude to check for existing code before implementing
+
+**Performance**: < 50ms total
+
+**Components**:
+
+| Component | Purpose | Target Latency |
+|-----------|---------|----------------|
+| Guidelines Generator | Planning quality templates | < 20ms |
+| Exploration Hints | Entity extraction + MCP hints | < 30ms |
+| Context Injector | Coordinates injection | < 50ms total |
+
+**Planning Guidelines Include**:
+1. **Code Reuse Check** - Search memory before implementing new code
+2. **Testing Requirements** - Include test tasks for new features
+3. **Documentation Requirements** - Include doc tasks for user-facing changes
+4. **Architecture Alignment** - Follow project patterns from CLAUDE.md
+5. **Performance Considerations** - Flag potential anti-patterns
+
+**Exploration Hints Include**:
+- Duplicate detection queries (search for similar existing code)
+- Test file discovery (find related test files)
+- Documentation discovery (locate relevant docs)
+- Entity relationship analysis (understand dependencies)
+
+**Entity Extraction**:
+The hints generator extracts entities from prompts using:
+- CamelCase patterns (e.g., `UserService`, `AuthController`)
+- snake_case patterns (e.g., `user_service`, `auth_handler`)
+- Quoted terms (e.g., `"login"`, `'authentication'`)
+- Technical terms (e.g., `api`, `database`, `middleware`)
+
+**Configuration**:
+
+Environment variables:
+- `CLAUDE_PLAN_MODE_COMPACT=true` - Use abbreviated guidelines
+- `CLAUDE_PLAN_MODE_CONFIG=/path/to/config.json` - Custom config file
+
+Config file format:
+```json
+{
+  "enabled": true,
+  "inject_guidelines": true,
+  "inject_hints": true,
+  "compact_mode": false,
+  "guidelines": {
+    "include_code_reuse_check": true,
+    "include_testing_requirements": true,
+    "include_documentation_requirements": true,
+    "include_architecture_alignment": true,
+    "include_performance_considerations": true
+  },
+  "hints": {
+    "max_entity_hints": 3,
+    "include_duplicate_check": true,
+    "include_test_discovery": true,
+    "include_doc_discovery": true,
+    "include_architecture_hints": true
+  }
+}
+```
+
+**Output Example**:
+```
+[Plan Mode Active: explicit_marker, confidence=100%]
+
+=== PLANNING QUALITY GUIDELINES ===
+
+When formulating this implementation plan, follow these guidelines:
+
+## 1. Code Reuse Check (CRITICAL)
+Before proposing ANY new function, class, or component:
+- Search the codebase: `mcp__project-memory__search_similar("functionality")`
+- Check existing patterns: `mcp__project-memory__read_graph(entity="Component", mode="relationships")`
+- If similar exists, plan to REUSE or EXTEND it
+- State explicitly: "Verified no existing implementation" or "Will extend existing Y"
+
+## 2. Testing Requirements
+Every plan that modifies code MUST include:
+- [ ] Unit tests for new/modified functions
+- [ ] Integration tests for API changes
+- Task format: "Add tests for [feature] in [test_file]"
+
+## 3. Documentation Requirements
+Include documentation tasks when:
+- Adding public APIs -> Update API docs
+- Changing user-facing behavior -> Update README
+- Adding configuration -> Update config docs
+
+## 4. Architecture Alignment
+Your plan MUST align with project patterns:
+- Use repository pattern for data access
+- Implement dependency injection
+
+## 5. Performance Considerations
+Flag any step that may introduce:
+- O(n^2) or worse complexity
+- Unbounded memory usage
+- Missing timeouts on network calls
+
+=== END PLANNING GUIDELINES ===
+
+=== EXPLORATION HINTS ===
+
+Consider running these queries to inform your plan:
+
+## Duplicate Check
+mcp__project-memory__search_similar("UserService", entityTypes=["function", "class"])
+
+## Test Discovery
+mcp__project-memory__search_similar("UserService test", entityTypes=["file", "function"])
+
+## Documentation
+mcp__project-memory__search_similar("documentation README", entityTypes=["documentation", "file"])
+
+## UserService Analysis
+mcp__project-memory__read_graph(entity="UserService", mode="smart")
+
+=== END EXPLORATION HINTS ===
+```
+
+**Testing Plan Mode Injection**:
+```bash
+# Test with explicit marker
+echo '{"prompt": "@plan Create user authentication", "cwd": "/path/to/project"}' | python .claude/hooks/prompt_handler.py
+
+# Test with planning keywords
+echo '{"prompt": "Create a step-by-step plan for authentication", "cwd": "/path/to/project"}' | python .claude/hooks/prompt_handler.py
+```
+
+---
+
 ### PreToolUse (`pre-tool-guard.sh`)
 
 **Trigger**: Before Write, Edit, or Bash operations

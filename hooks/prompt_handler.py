@@ -5,8 +5,9 @@ UserPromptSubmit Hook - Memory-First Context Injection.
 Runs before Claude processes user prompts to:
 1. Detect prompt intent (search, implement, debug, refactor)
 2. Detect Plan Mode activation (Milestone 7.1)
-3. Inject appropriate MCP tool suggestions
-4. Reinforce memory-first development approach
+3. Inject planning guidelines and exploration hints (Milestone 7.2)
+4. Inject appropriate MCP tool suggestions
+5. Reinforce memory-first development approach
 
 Performance target: <50ms total execution
 """
@@ -15,12 +16,17 @@ import json
 import os
 import re
 import sys
+from pathlib import Path
 
 # Add project root to path for imports
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from claude_indexer.hooks.plan_mode_detector import (  # noqa: E402
     detect_plan_mode,
+)
+from claude_indexer.hooks.planning.injector import (  # noqa: E402
+    PlanContextInjectionConfig,
+    inject_plan_context,
 )
 
 # Intent patterns (compiled for performance)
@@ -103,12 +109,45 @@ def check_sensitive(prompt: str) -> str | None:
     return None
 
 
+def _load_plan_mode_config() -> PlanContextInjectionConfig | None:
+    """Load Plan Mode configuration from environment or file.
+
+    Checks:
+    1. CLAUDE_PLAN_MODE_CONFIG environment variable for config file path
+    2. CLAUDE_PLAN_MODE_COMPACT environment variable for compact mode
+
+    Returns:
+        PlanContextInjectionConfig or None for defaults
+    """
+    # Check for config file
+    config_path = os.environ.get("CLAUDE_PLAN_MODE_CONFIG")
+    if config_path and Path(config_path).exists():
+        try:
+            with open(config_path) as f:
+                data = json.load(f)
+            return PlanContextInjectionConfig.from_dict(data)
+        except (OSError, json.JSONDecodeError):
+            pass
+
+    # Check for compact mode environment variable
+    compact_mode = os.environ.get("CLAUDE_PLAN_MODE_COMPACT", "").lower() in (
+        "true",
+        "1",
+        "yes",
+    )
+    if compact_mode:
+        return PlanContextInjectionConfig(compact_mode=True)
+
+    return None
+
+
 def main():
     """Run the prompt handler hook."""
     try:
         # Read input from stdin
         input_data = json.load(sys.stdin)
         prompt = input_data.get("prompt", "")
+        cwd = input_data.get("cwd", os.getcwd())
 
         # Get collection from environment or default
         collection = os.environ.get("CLAUDE_MEMORY_COLLECTION", "project")
@@ -126,17 +165,31 @@ def main():
 
         # Plan Mode detection (Milestone 7.1)
         plan_result, _plan_ctx = detect_plan_mode(prompt)
+
         if plan_result.is_plan_mode:
+            # Output Plan Mode status
             src = plan_result.source.value if plan_result.source else "unknown"
             context_parts.append(
                 f"[Plan Mode Active: {src}, "
                 f"confidence={plan_result.confidence:.0%}]"
             )
 
-        # Add tool suggestions based on intent
-        tool_context = build_context(intents, collection)
-        if tool_context:
-            context_parts.append(tool_context)
+            # Milestone 7.2: Inject planning guidelines and exploration hints
+            config = _load_plan_mode_config()
+            injection_result = inject_plan_context(
+                prompt=prompt,
+                collection_name=collection,
+                project_path=Path(cwd),
+                config=config,
+            )
+
+            if injection_result.success and injection_result.injected_text:
+                context_parts.append(injection_result.injected_text)
+        else:
+            # Non-Plan Mode: Add tool suggestions based on intent
+            tool_context = build_context(intents, collection)
+            if tool_context:
+                context_parts.append(tool_context)
 
         # Output context if any
         if context_parts:
