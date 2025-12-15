@@ -247,6 +247,94 @@ echo '{"prompt": "Create a step-by-step plan for authentication", "cwd": "/path/
 
 ---
 
+### Plan Mode Tool Access Control (Milestone 8.4)
+
+**Location**: MCP Server (`mcp-qdrant-memory/src/plan-mode-guard.ts`)
+
+**Purpose**:
+- Block write operations during Plan Mode to prevent accidental modifications
+- Ensure read-only access to memory during planning phase
+- Provide explicit control via `set_plan_mode` MCP tool
+
+**Activation**:
+Plan Mode can be activated in two ways:
+1. **Environment Variable**: `CLAUDE_PLAN_MODE=true` (matches Python detection)
+2. **Explicit Tool Call**: `set_plan_mode({ enabled: true })`
+
+**Tool Categorization**:
+
+| Category | Tools | Behavior |
+|----------|-------|----------|
+| **Blocked (Write)** | create_entities, create_relations, add_observations, delete_entities, delete_observations, delete_relations | Return error in Plan Mode |
+| **Allowed (Read)** | search_similar, read_graph, get_implementation, search_docs, get_doc, search_tickets, get_ticket, set_plan_mode | Always allowed |
+
+**Error Response**:
+When a blocked tool is called in Plan Mode:
+```json
+{
+  "error": "PLAN_MODE_ACCESS_DENIED",
+  "message": "Tool 'create_entities' is blocked in Plan Mode. Plan Mode only allows read-only operations.",
+  "tool": "create_entities",
+  "planModeActive": true,
+  "blockedTools": ["create_entities", "create_relations", "add_observations", "delete_entities", "delete_observations", "delete_relations"],
+  "hint": "Use set_plan_mode({ enabled: false }) to exit Plan Mode before making changes."
+}
+```
+
+**MCP Tool: set_plan_mode**:
+```typescript
+{
+  name: "set_plan_mode",
+  description: "Enable or disable Plan Mode. When enabled, only read-only operations are allowed.",
+  inputSchema: {
+    type: "object",
+    properties: {
+      enabled: {
+        type: "boolean",
+        description: "true to enable Plan Mode (read-only), false to disable"
+      }
+    },
+    required: ["enabled"]
+  }
+}
+```
+
+**Usage Examples**:
+```typescript
+// Enable Plan Mode (read-only access)
+mcp__project-memory__set_plan_mode({ enabled: true })
+// Response: "Plan Mode enabled. Only read-only operations allowed."
+
+// Attempt to create entities in Plan Mode
+mcp__project-memory__create_entities({ entities: [...] })
+// Response: Error - PLAN_MODE_ACCESS_DENIED
+
+// Disable Plan Mode to make changes
+mcp__project-memory__set_plan_mode({ enabled: false })
+// Response: "Plan Mode disabled. All operations allowed."
+
+// Now create entities works
+mcp__project-memory__create_entities({ entities: [...] })
+// Response: "Entities created successfully"
+```
+
+**Environment Variable Configuration**:
+```bash
+# Enable Plan Mode via environment (auto-detected on MCP server start)
+export CLAUDE_PLAN_MODE=true  # Also accepts: "1", "yes", "on"
+
+# Check if Plan Mode is active (via MCP)
+# The set_plan_mode response shows current state
+```
+
+**Integration with Plan Mode Detection**:
+The MCP server's Plan Mode detection matches the Python implementation in `claude_indexer/hooks/plan_mode_detector.py`:
+- Both use `CLAUDE_PLAN_MODE` environment variable
+- Both accept: "true", "1", "yes", "on" (case-insensitive)
+- Python hooks can set env var, MCP server reads it
+
+---
+
 ### PreToolUse (`pre-tool-guard.sh`)
 
 **Trigger**: Before Write, Edit, or Bash operations

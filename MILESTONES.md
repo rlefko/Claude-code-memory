@@ -315,15 +315,15 @@ class DesignDocsConfig(BaseModel):
 
 | ID | Task | Priority | Status |
 |----|------|----------|--------|
-| 8.3.1 | Create `claude_indexer/integrations/` package | HIGH | NEW |
-| 8.3.2 | Implement `LinearClient` with GraphQL queries | HIGH | NEW |
-| 8.3.3 | Implement `GitHubIssuesClient` with REST API | HIGH | NEW |
-| 8.3.4 | Create `TicketEntity` data model | HIGH | NEW |
-| 8.3.5 | Add `search_tickets` MCP tool | HIGH | NEW |
-| 8.3.6 | Add `get_ticket` MCP tool with comments/PRs | HIGH | NEW |
-| 8.3.7 | Implement authentication configuration | MEDIUM | NEW |
-| 8.3.8 | Add rate limiting and caching | MEDIUM | NEW |
-| 8.3.9 | Create ticket sync service (background) | LOW | NEW |
+| 8.3.1 | Create `claude_indexer/integrations/` package | HIGH | DONE |
+| 8.3.2 | Implement `LinearClient` with GraphQL queries | HIGH | DONE |
+| 8.3.3 | Implement `GitHubIssuesClient` with REST API | HIGH | DONE |
+| 8.3.4 | Create `TicketEntity` data model | HIGH | DONE |
+| 8.3.5 | Add `search_tickets` MCP tool | HIGH | DONE |
+| 8.3.6 | Add `get_ticket` MCP tool with comments/PRs | HIGH | DONE |
+| 8.3.7 | Implement authentication configuration | MEDIUM | DONE |
+| 8.3.8 | Add rate limiting and caching | MEDIUM | DONE |
+| 8.3.9 | Create ticket sync service (background) | LOW | DEFERRED |
 
 **TicketEntity Data Model**:
 ```python
@@ -420,12 +420,12 @@ class GitHubIssuesConfig(BaseModel):
 
 | ID | Task | Priority | Status |
 |----|------|----------|--------|
-| 8.4.1 | Create `PlanModeGuard` class in MCP server | HIGH | NEW |
-| 8.4.2 | Define allowed tools list for Plan Mode | HIGH | NEW |
-| 8.4.3 | Define blocked tools list (write operations) | HIGH | NEW |
-| 8.4.4 | Integrate guard into MCP request handler | HIGH | NEW |
-| 8.4.5 | Add `set_plan_mode` internal tool | MEDIUM | NEW |
-| 8.4.6 | Create clear error messages for blocked tools | MEDIUM | NEW |
+| 8.4.1 | Create `PlanModeGuard` class in MCP server | HIGH | DONE |
+| 8.4.2 | Define allowed tools list for Plan Mode | HIGH | DONE |
+| 8.4.3 | Define blocked tools list (write operations) | HIGH | DONE |
+| 8.4.4 | Integrate guard into MCP request handler | HIGH | DONE |
+| 8.4.5 | Add `set_plan_mode` internal tool | MEDIUM | DONE |
+| 8.4.6 | Create clear error messages for blocked tools | MEDIUM | DONE |
 
 **PlanModeGuard**:
 ```typescript
@@ -457,14 +457,23 @@ class PlanModeGuard {
 ```
 
 **Testing Requirements**:
-- [ ] Test tool blocking in Plan Mode
-- [ ] Test allowed tools work correctly
-- [ ] Verify error messages are clear
+- [x] Test tool blocking in Plan Mode
+- [x] Test allowed tools work correctly
+- [x] Verify error messages are clear
 
 **Success Criteria**:
-- Write tools blocked in Plan Mode
-- Clear error messages for blocked operations
-- No security bypass possible
+- [x] Write tools blocked in Plan Mode
+- [x] Clear error messages for blocked operations
+- [x] No security bypass possible
+
+**Implementation Details** (Milestone 8.4 Complete):
+- Created `mcp-qdrant-memory/src/plan-mode-guard.ts` with PlanModeGuard class
+- Environment variable detection via `CLAUDE_PLAN_MODE` (matches Python implementation)
+- Blocked tools: create_entities, create_relations, add_observations, delete_entities, delete_observations, delete_relations
+- Allowed tools: search_similar, read_graph, get_implementation, search_docs, get_doc, search_tickets, get_ticket, set_plan_mode
+- Added `set_plan_mode` MCP tool to enable/disable Plan Mode
+- Error responses include blocked tools list and hint for resolution
+- Version bumped to 0.6.4
 
 ---
 
