@@ -239,12 +239,12 @@ class DesignDocsConfig(BaseModel):
 
 | ID | Task | Priority | Status |
 |----|------|----------|--------|
-| 8.2.1 | Add `search_docs` tool to MCP server | HIGH | NEW |
-| 8.2.2 | Add `get_doc` tool for full document retrieval | HIGH | NEW |
-| 8.2.3 | Implement docTypes filtering (prd, tdd, adr, spec) | MEDIUM | NEW |
-| 8.2.4 | Add section-specific retrieval | LOW | NEW |
-| 8.2.5 | Create TypeScript interfaces for doc tools | MEDIUM | NEW |
-| 8.2.6 | Add validation for doc tool inputs | MEDIUM | NEW |
+| 8.2.1 | Add `search_docs` tool to MCP server | HIGH | DONE |
+| 8.2.2 | Add `get_doc` tool for full document retrieval | HIGH | DONE |
+| 8.2.3 | Implement docTypes filtering (prd, tdd, adr, spec) | MEDIUM | DONE |
+| 8.2.4 | Add section-specific retrieval | LOW | DONE |
+| 8.2.5 | Create TypeScript interfaces for doc tools | MEDIUM | DONE |
+| 8.2.6 | Add validation for doc tool inputs | MEDIUM | DONE |
 
 **MCP Tool: search_docs**:
 ```typescript
@@ -284,15 +284,26 @@ class DesignDocsConfig(BaseModel):
 ```
 
 **Testing Requirements**:
-- [ ] Test search with various queries
-- [ ] Test filtering by document type
-- [ ] Test full document retrieval
-- [ ] Benchmark search latency (<50ms)
+- [x] Test search with various queries
+- [x] Test filtering by document type
+- [x] Test full document retrieval
+- [x] Benchmark search latency (<50ms)
 
 **Success Criteria**:
-- Both tools implemented and tested
-- Filter by document type works correctly
-- <50ms search latency
+- [x] Both tools implemented and tested
+- [x] Filter by document type works correctly
+- [x] <50ms search latency
+
+**Implementation Details** (Milestone 8.2 Complete):
+- Created `DocSearchResult` and `DocContent` interfaces in `mcp-qdrant-memory/src/types.ts`
+- Added `SearchDocsRequest` and `GetDocRequest` interfaces in `validation.ts`
+- Implemented `validateSearchDocsRequest` and `validateGetDocRequest` validators
+- Added `searchDocs()` and `getDoc()` methods to `QdrantPersistence` class
+- Added `search_docs` and `get_doc` tool definitions to MCP server
+- Supports docTypes filtering: prd, tdd, adr, spec
+- Section-specific retrieval via `section` parameter
+- Multi-project support via `collection` parameter
+- Returns sections sorted by line number, requirements with type classification
 
 ---
 
