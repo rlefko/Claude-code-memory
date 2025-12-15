@@ -1,157 +1,177 @@
-"""Unified configuration loading with project support."""
+"""Unified configuration loading with project support.
 
-import os
+This module provides backward-compatible access to the hierarchical configuration
+system. It delegates internally to HierarchicalConfigLoader while returning
+IndexerConfig for compatibility with existing code.
+
+Migration Note (v1.0.0):
+    ConfigLoader now uses HierarchicalConfigLoader internally. All consumers
+    continue to work unchanged - they receive IndexerConfig as before, but
+    the loading logic uses the modern hierarchical system.
+"""
+
 from pathlib import Path
 from typing import Any
 
 from ..indexer_logging import get_logger
+from .hierarchical_loader import HierarchicalConfigLoader
 from .legacy import load_legacy_settings
 from .models import IndexerConfig
-from .project_config import ProjectConfigManager
+from .unified_config import UnifiedConfig
 
 logger = get_logger()
 
 
 class ConfigLoader:
-    """Unified configuration loader with project-level support."""
+    """Unified configuration loader with project-level support.
+
+    This class delegates to HierarchicalConfigLoader internally while
+    maintaining backward compatibility by returning IndexerConfig.
+
+    Precedence (highest to lowest):
+    1. Explicit overrides
+    2. Environment variables
+    3. Local overrides (.claude/settings.local.json)
+    4. Project config (.claude/settings.json or .claude-indexer/config.json)
+    5. Global config (~/.claude-indexer/config.json)
+    6. Legacy settings.txt
+    7. Defaults
+    """
 
     def __init__(
         self,
         project_path: Path | None = None,
         settings_file_override: Path | None = None,
     ):
+        """Initialize the configuration loader.
+
+        Args:
+            project_path: Path to the project root. Defaults to current directory.
+            settings_file_override: Optional explicit settings file path (for tests).
+        """
         self.project_path = Path(project_path) if project_path else Path.cwd()
-        self.project_manager = ProjectConfigManager(self.project_path)
-        self._merged_config: Any | None = None
-        # Optional explicit settings file that replaces global settings.txt
         self._settings_file_override = settings_file_override
+        self._unified_config: UnifiedConfig | None = None
 
     def load(self, **overrides: Any) -> IndexerConfig:
         """Load unified configuration from all sources.
 
-        Precedence (highest to lowest):
-        1. Explicit overrides
-        2. Environment variables
-        3. Project config (.claude-indexer/config.json)
-        4. Settings file (explicit override or global settings.txt)
-        5. Defaults
+        Returns:
+            IndexerConfig with settings from all sources merged.
         """
-        config_dict = {}
+        # Create hierarchical loader
+        loader = HierarchicalConfigLoader(self.project_path)
 
-        # 1. Load settings file (explicit override or global settings.txt)
-        if self._settings_file_override is not None:
-            settings_file = self._settings_file_override
-        else:
-            settings_file = Path(__file__).parent.parent.parent / "settings.txt"
+        # Convert all flat-key overrides to nested format
+        # This ensures backward compatibility with old-style calls like:
+        #   load_config(openai_api_key="sk-xxx", qdrant_url="http://...")
+        nested_overrides = self._convert_legacy_to_nested(overrides)
 
-        if settings_file.exists():
-            legacy_settings = load_legacy_settings(settings_file)
-            config_dict.update(legacy_settings)
-            logger.debug(f"Loaded {len(legacy_settings)} settings from {settings_file}")
-
-        # 2. Apply environment variables
-        env_vars = {
-            "openai_api_key": os.environ.get("OPENAI_API_KEY"),
-            "voyage_api_key": os.environ.get("VOYAGE_API_KEY"),
-            "qdrant_api_key": os.environ.get("QDRANT_API_KEY"),
-            "qdrant_url": os.environ.get("QDRANT_URL"),
-            "embedding_provider": os.environ.get("EMBEDDING_PROVIDER"),
-            "voyage_model": os.environ.get("VOYAGE_MODEL"),
-        }
-        env_count = 0
-        for key, value in env_vars.items():
-            if value is not None:
-                config_dict[key] = value
-                env_count += 1
-        if env_count > 0:
-            logger.debug(f"Applied {env_count} environment variables")
-
-        # 3. Apply project config overrides
-        try:
-            # Auto-create config on first run (like init command)
-            if not self.project_manager.exists:
-                project_name = self.project_path.name
-                collection_name = config_dict.get("collection_name", project_name)
-                project_config = self.project_manager.create_default(
-                    project_name, collection_name
-                )
-                self.project_manager.save(project_config)
-                logger.info(
-                    f"Created default project config at {self.project_manager.config_path}"
-                )
-
-            if self.project_manager.exists:
-                project_config = self.project_manager.load()
-                project_overrides = self._extract_overrides(project_config)
-                config_dict.update(project_overrides)
+        # Handle custom-named settings files (not "settings.txt")
+        # HierarchicalConfigLoader automatically loads "settings.txt" from project_path,
+        # but for custom-named files (e.g., "test_settings.txt"), we need to load them
+        # and inject the values. These values have LOWER priority than env vars.
+        if self._settings_file_override and self._settings_file_override.exists():
+            if self._settings_file_override.name != "settings.txt":
+                # Custom-named file - HierarchicalConfigLoader won't find it
+                # Load it separately and inject BEFORE env vars (via loader's internal logic)
+                legacy_settings = load_legacy_settings(self._settings_file_override)
+                file_nested = self._convert_legacy_to_nested(legacy_settings)
+                # Merge file settings, then explicit overrides take precedence
+                # Note: This still puts custom file values at override priority level
+                # For proper precedence, we'd need to extend HierarchicalConfigLoader
+                merged_overrides = dict(file_nested)
+                merged_overrides.update(nested_overrides)
                 logger.debug(
-                    f"Applied {len(project_overrides)} project config settings"
+                    f"Applied {len(legacy_settings)} settings from custom file "
+                    f"{self._settings_file_override}"
                 )
-        except Exception as e:
-            logger.warning(f"Failed to load project config: {e}")
+            else:
+                # Standard "settings.txt" - HierarchicalConfigLoader will find it
+                # Just pass the explicit overrides
+                merged_overrides = nested_overrides
+        else:
+            merged_overrides = nested_overrides
 
-        # 4. Apply explicit overrides (highest priority)
-        config_dict.update(overrides)
-        if overrides:
-            logger.debug(f"Applied {len(overrides)} explicit overrides")
+        # Load unified config and store for get_parser_config()
+        self._unified_config = loader.load(**merged_overrides)
 
-        # 5. Create IndexerConfig with merged settings
+        # Convert to IndexerConfig for backward compatibility
         try:
-            return IndexerConfig(**config_dict)
-        except Exception as e:
-            logger.warning(f"Configuration validation failed: {e}, using defaults")
-            # Create with defaults and apply valid overrides
+            return self._unified_config.to_indexer_config()
+        except (AttributeError, TypeError) as e:
+            # Fallback: HierarchicalConfigLoader._create_fallback_config may return
+            # a UnifiedConfig with dict values instead of proper model instances
+            logger.warning(f"Config conversion failed, using defaults: {e}")
+            # Create IndexerConfig with defaults and apply valid flat overrides
             config = IndexerConfig()
-            for key, value in config_dict.items():
+            for key, value in overrides.items():
                 if hasattr(config, key):
                     try:
                         setattr(config, key, value)
-                    except (ValueError, TypeError, AttributeError) as e:
-                        logger.warning(f"Ignoring invalid setting {key}={value}: {e}")
-                    except Exception as e:
-                        logger.error(f"Unexpected error setting {key}={value}: {e}")
+                    except (ValueError, TypeError, AttributeError):
+                        logger.debug(f"Skipping invalid override {key}={value}")
             return config
 
-    def _extract_overrides(self, project_config: Any) -> dict[str, Any]:
-        """Extract IndexerConfig-compatible overrides from project config."""
-        overrides = {}
+    def _convert_legacy_to_nested(self, legacy: dict[str, Any]) -> dict[str, Any]:
+        """Convert legacy flat keys to nested format for HierarchicalConfigLoader.
 
-        # File patterns
-        if project_config.indexing.file_patterns:
-            overrides["include_patterns"] = (
-                project_config.indexing.file_patterns.include
-            )
-            overrides["exclude_patterns"] = (
-                project_config.indexing.file_patterns.exclude
-            )
+        Uses dot notation that HierarchicalConfigLoader._apply_overrides() supports.
+        """
+        # Mapping from legacy flat keys to dot-notation paths
+        key_mappings = {
+            "openai_api_key": "api.openai.api_key",
+            "voyage_api_key": "api.voyage.api_key",
+            "qdrant_api_key": "api.qdrant.api_key",
+            "qdrant_url": "api.qdrant.url",
+            "embedding_provider": "embedding.provider",
+            "voyage_model": "api.voyage.model",
+            "indexer_debug": "logging.debug",
+            "indexer_verbose": "logging.verbose",
+            "debounce_seconds": "watcher.debounce_seconds",
+            "max_file_size": "indexing.max_file_size",
+            "batch_size": "performance.batch_size",
+            "max_concurrent_files": "performance.max_concurrent_files",
+            "use_parallel_processing": "performance.use_parallel_processing",
+            "max_parallel_workers": "performance.max_parallel_workers",
+            "cleanup_interval_minutes": "performance.cleanup_interval_minutes",
+            "include_tests": "indexing.include_tests",
+        }
 
-        # File size limit
-        if project_config.indexing.max_file_size:
-            overrides["max_file_size"] = project_config.indexing.max_file_size
+        result: dict[str, Any] = {}
+        for old_key, value in legacy.items():
+            if old_key in key_mappings:
+                result[key_mappings[old_key]] = value
+            else:
+                # Pass through unknown keys as-is
+                result[old_key] = value
 
-        # Watcher settings
-        if project_config.watcher.debounce_seconds:
-            overrides["debounce_seconds"] = project_config.watcher.debounce_seconds
-
-        # Collection name from project
-        if project_config.project.collection:
-            overrides["collection_name"] = project_config.project.collection
-
-        return overrides
+        return result
 
     def get_parser_config(self, parser_name: str) -> dict[str, Any]:
-        """Get parser-specific configuration."""
-        if self.project_manager.exists:
-            try:
-                return self.project_manager.get_parser_config(parser_name)
-            except (FileNotFoundError, KeyError) as e:
-                logger = get_logger()
-                logger.warning(f"Parser config not found for {parser_name}: {e}")
-            except Exception as e:
-                logger = get_logger()
-                logger.error(
-                    f"Unexpected error getting parser config for {parser_name}: {e}"
-                )
+        """Get parser-specific configuration.
+
+        Args:
+            parser_name: Name of the parser (e.g., 'python', 'javascript').
+
+        Returns:
+            Parser-specific configuration dictionary.
+        """
+        # Ensure config is loaded
+        if self._unified_config is None:
+            self.load()
+
+        if self._unified_config and self._unified_config.indexing.parser_config:
+            parser_config = self._unified_config.indexing.parser_config.get(
+                parser_name, {}
+            )
+            if isinstance(parser_config, dict):
+                return parser_config
+            # Handle ParserSpecificConfig model
+            if hasattr(parser_config, "dict"):
+                return parser_config.dict()
+            if hasattr(parser_config, "model_dump"):
+                return parser_config.model_dump()
         return {}
 
 

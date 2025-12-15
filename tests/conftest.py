@@ -146,23 +146,10 @@ def empty_repo(tmp_path_factory) -> Path:
 # ---------------------------------------------------------------------------
 
 
-def get_test_collection_name(base_name: str = "test_collection") -> str:
-    """Generate a unique test collection name with timestamp.
-
-    DEPRECATED: Use get_unique_collection_name() for guaranteed uniqueness.
-    This function uses second-precision timestamps which can cause collisions.
-    """
-    import time
-
-    timestamp = int(time.time())
-    return f"{base_name}_{timestamp}"
-
-
 def get_unique_collection_name(prefix: str = "test") -> str:
     """Generate guaranteed unique collection name using UUID4.
 
-    This should be used instead of get_test_collection_name() to avoid
-    collection name collisions in rapid test execution scenarios.
+    Uses UUID4 to avoid collection name collisions in rapid test execution scenarios.
     """
     import uuid
 

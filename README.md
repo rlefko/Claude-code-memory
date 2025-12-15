@@ -1,6 +1,6 @@
 # Claude Code Memory - Transform Claude into a 10x Senior Architect
 
-> **v2.9** | Semantic code memory for Claude Code with hybrid search, Memory Guard v4.3, and intelligent hooks
+> **v1.0** | Semantic code memory for Claude Code with hybrid search, Memory Guard v4.3, and intelligent hooks
 
 ```mermaid
 graph LR
@@ -330,7 +330,7 @@ claude-indexer add-mcp -c my-project
 ## 🎯 Proven Results
 
 - **3.99ms** semantic search across millions of lines of code
-- **BM25 keyword search** for exact term matching (new in v2.8)
+- **BM25 keyword search** for exact term matching
 - **Hybrid search** combines semantic understanding + keyword precision
 - **90% faster** debugging with pattern memory
 - **85% cost reduction** with Voyage AI embeddings
@@ -560,7 +560,7 @@ python utils/manual_memory_backup.py restore -f backup.json      # Restore from 
 python utils/qdrant_stats.py -c my-project --detailed           # Collection health stats
 ```
 
-### Chat Analysis (v2.3+)
+### Chat Analysis
 ```bash
 claude-indexer chat index -p . -c my-project --limit 50         # Process chat history
 claude-indexer chat search "debugging patterns" -p . -c my-project  # Search chat insights
@@ -643,23 +643,31 @@ docker run -p 6333:6333 -v $(pwd)/qdrant_storage:/qdrant/storage qdrant/qdrant
 
 ## 🔧 Automation Features
 
-### Gitignore Pattern Detection
-The system automatically detects and excludes files from your `.gitignore`:
+### Exclusion Pattern Detection
+The system automatically detects and excludes files using multiple layers:
 
 ```python
-# Utility: utils/gitignore_parser.py
-from utils.gitignore_parser import get_patterns_for_project
+# Utility: utils/exclusion_manager.py
+from utils.exclusion_manager import ExclusionManager, get_patterns_for_project
 
-# Automatically excludes build artifacts, dependencies, generated files
+# Get patterns for a project (combines .gitignore + .claudeignore + defaults)
+manager = ExclusionManager('/path/to/project')
+patterns = manager.get_all_patterns()
+
+# Check if a specific file should be excluded
+if manager.should_exclude(file_path):
+    skip_indexing()
+
+# Simple function interface
 patterns = get_patterns_for_project('/path/to/project')
 # Returns: ['.git/', 'node_modules/', 'dist/', '__pycache__/', ...]
 ```
 
-**Benefits:**
-- No manual exclude configuration needed
-- Respects project-specific .gitignore patterns
-- Combines with sensible defaults (`.git/`, `.claude-indexer/`, build outputs)
-- Prevents indexing of generated code and dependencies
+**Multi-Layer Exclusion:**
+- Universal defaults (`.git/`, `node_modules/`, build outputs)
+- Project `.gitignore` patterns
+- Custom `.claudeignore` patterns for indexing-specific exclusions
+- Binary file detection (magic numbers, executable bits)
 
 ### CLAUDE.md Template System
 Automatically generates project-specific documentation:
@@ -736,7 +744,7 @@ The hook system automates memory operations at key workflow points:
 | **PreToolUse** | `pre-tool-guard.sh` | Before Write/Edit/Bash | Memory Guard quality checks | < 300ms |
 | **PostToolUse** | `post-file-change.sh` | After Write/Edit | Auto-index changed files | ~100ms |
 
-### Batch Indexing (New in v2.8)
+### Batch Indexing
 
 Git hooks now use batch indexing for **4-15x faster** performance:
 

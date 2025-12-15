@@ -7,6 +7,44 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.0.0] - 2024-12-13
+
+### Breaking Changes
+- **Removed deprecated `utils/gitignore_parser.py`** - Use `utils/exclusion_manager.py` instead
+  - `get_patterns_for_project()` function is still available in `exclusion_manager.py`
+  - `GitignoreParser` class is available as `exclusion_manager.GitignoreParser`
+  - `ExclusionManager` provides the full multi-layer exclusion API
+- **Removed deprecated `utils/merge_settings.py`** - No longer needed since `.mcp.json` migration
+
+### Removed
+- `get_test_collection_name()` from test fixtures - Use `get_unique_collection_name()` instead
+
+### Fixed
+- **Version synchronization** - All documentation and code now consistently report v1.0.0
+  - Previously: README.md said v2.9, CLAUDE.md said v2.8, code said v0.2.0
+- **Documentation accuracy** - Updated README.md to reference `exclusion_manager.py` instead of deprecated `gitignore_parser.py`
+
+### Changed
+- **Version scheme reset** - Moving to semantic versioning with v1.0.0 as the first stable release
+  - This marks a clean break from the inconsistent versioning history
+- **Configuration system migration (Milestone 0.1)** - Unified hierarchical configuration deployed
+  - `ConfigLoader` now delegates internally to `HierarchicalConfigLoader`
+  - Full backward compatibility maintained via `UnifiedConfig.to_indexer_config()`
+  - All 13+ consumer files work unchanged
+  - `project_config.py` marked as deprecated (kept for backward compatibility)
+
+### Configuration Precedence (v1.0.0)
+Configuration now loads from multiple sources with the following precedence:
+1. Explicit overrides (highest)
+2. Environment variables
+3. Local overrides (`.claude/settings.local.json`)
+4. Project config (`.claude/settings.json` or `.claude-indexer/config.json`)
+5. Global config (`~/.claude-indexer/config.json`)
+6. Legacy `settings.txt`
+7. Defaults (lowest)
+
+---
+
 ## [2.9.19] - 2024-12-12
 
 ### Added

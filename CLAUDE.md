@@ -1,6 +1,6 @@
 # CLAUDE.md - Developer Guide
 
-> **v2.8** | Claude Code Memory - Semantic code memory for Claude Code
+> **v1.0** | Claude Code Memory - Semantic code memory for Claude Code
 
 This file provides guidance to Claude Code when working with code in this repository.
 
