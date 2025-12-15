@@ -26,6 +26,12 @@ Milestone 7.1 adds Plan Mode Detection:
 - PlanModeDetector: Detects Plan Mode from prompts
 - PlanModeDetectionResult: Detection outcome with confidence
 - detect_plan_mode: Convenience function for hook integration
+
+Milestone 12.1 adds Plan QA Verification:
+- PlanQAVerifier: Pattern-based plan quality verification
+- PlanQAResult: Verification outcome with feedback
+- PlanQAConfig: Configuration for QA checks
+- verify_plan_qa: Convenience function for plan verification
 """
 
 from .fix_generator import FixSuggestion, FixSuggestionGenerator
@@ -34,6 +40,12 @@ from .plan_mode_detector import (
     PlanModeDetectionResult,
     PlanModeDetector,
     detect_plan_mode,
+)
+from .plan_qa import (
+    PlanQAConfig,
+    PlanQAResult,
+    PlanQAVerifier,
+    verify_plan_qa,
 )
 from .post_write import (
     PostWriteExecutor,
@@ -86,4 +98,9 @@ __all__ = [
     "PlanModeDetector",
     "PlanModeDetectionResult",
     "detect_plan_mode",
+    # Plan QA Verification (Milestone 12.1)
+    "PlanQAConfig",
+    "PlanQAResult",
+    "PlanQAVerifier",
+    "verify_plan_qa",
 ]

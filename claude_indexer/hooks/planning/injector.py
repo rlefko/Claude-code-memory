@@ -9,12 +9,13 @@ This is the main entry point for Plan Mode context injection.
 Performance target: <50ms total injection time
 
 Milestone 7.2: Hook Infrastructure Extension
+Milestone 12.2: QA Integration Points
 """
 
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from .exploration import (
     ExplorationHints,
@@ -26,6 +27,9 @@ from .guidelines import (
     PlanningGuidelinesConfig,
     PlanningGuidelinesGenerator,
 )
+
+if TYPE_CHECKING:
+    from claude_indexer.hooks.plan_qa import PlanQAConfig, PlanQAResult
 
 
 @dataclass
@@ -39,6 +43,8 @@ class PlanContextInjectionConfig:
         inject_guidelines: Whether to inject planning guidelines
         inject_hints: Whether to inject exploration hints
         compact_mode: Use abbreviated guidelines for low-latency
+        qa_enabled: Whether Plan QA verification is enabled (Milestone 12.2)
+        qa_config: Configuration for Plan QA verification
     """
 
     enabled: bool = True
@@ -49,17 +55,23 @@ class PlanContextInjectionConfig:
     inject_guidelines: bool = True
     inject_hints: bool = True
     compact_mode: bool = False
+    qa_enabled: bool = True
+    qa_config: "PlanQAConfig | None" = None
 
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for serialization."""
-        return {
+        result = {
             "enabled": self.enabled,
             "guidelines_config": self.guidelines_config.to_dict(),
             "hints_config": self.hints_config.to_dict(),
             "inject_guidelines": self.inject_guidelines,
             "inject_hints": self.inject_hints,
             "compact_mode": self.compact_mode,
+            "qa_enabled": self.qa_enabled,
         }
+        if self.qa_config is not None:
+            result["qa_config"] = self.qa_config.to_dict()
+        return result
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "PlanContextInjectionConfig":
@@ -74,6 +86,14 @@ class PlanContextInjectionConfig:
         guidelines_data = data.get("guidelines", data.get("guidelines_config", {}))
         hints_data = data.get("hints", data.get("hints_config", {}))
 
+        # Handle qa_config if present
+        qa_config = None
+        qa_config_data = data.get("qa_config")
+        if qa_config_data:
+            from claude_indexer.hooks.plan_qa import PlanQAConfig
+
+            qa_config = PlanQAConfig.from_dict(qa_config_data)
+
         return cls(
             enabled=data.get("enabled", True),
             guidelines_config=PlanningGuidelinesConfig.from_dict(guidelines_data),
@@ -81,6 +101,8 @@ class PlanContextInjectionConfig:
             inject_guidelines=data.get("inject_guidelines", True),
             inject_hints=data.get("inject_hints", True),
             compact_mode=data.get("compact_mode", False),
+            qa_enabled=data.get("qa_enabled", True),
+            qa_config=qa_config,
         )
 
 
@@ -207,6 +229,32 @@ class PlanContextInjector:
 
         result.total_time_ms = (time.time() - start_time) * 1000
         return result
+
+    def verify_plan_output(self, plan_text: str) -> "PlanQAResult":
+        """Verify plan output quality (Milestone 12.2).
+
+        This method is called after plan generation to verify quality.
+        It checks for missing tests, documentation, duplicate verification,
+        and architecture concerns.
+
+        Args:
+            plan_text: Generated plan text to verify
+
+        Returns:
+            PlanQAResult with verification outcome
+        """
+        from claude_indexer.hooks.plan_qa import (
+            PlanQAConfig,
+            PlanQAResult,
+            PlanQAVerifier,
+        )
+
+        if not self.config.qa_enabled:
+            return PlanQAResult(is_valid=True)
+
+        qa_config = self.config.qa_config or PlanQAConfig()
+        verifier = PlanQAVerifier(config=qa_config)
+        return verifier.verify_plan(plan_text)
 
 
 def inject_plan_context(
