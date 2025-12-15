@@ -11,10 +11,13 @@ quality checks.
 from .generator import PlanGenerator
 from .guardrails import (
     PlanGuardrailConfig,
+    PlanPersistence,
     PlanRevision,
+    PlanSnapshot,
     PlanValidationContext,
     PlanValidationFinding,
     PlanValidationRule,
+    RevisionHistoryManager,
     RevisionType,
     RuleConfig,
 )
@@ -36,4 +39,8 @@ __all__ = [
     "PlanValidationRule",
     "RevisionType",
     "RuleConfig",
+    # Revision history (Milestone 10.2)
+    "PlanPersistence",
+    "PlanSnapshot",
+    "RevisionHistoryManager",
 ]

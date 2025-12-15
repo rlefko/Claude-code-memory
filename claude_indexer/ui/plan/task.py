@@ -6,7 +6,10 @@ for structured implementation planning.
 
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from .guardrails.auto_revision import AppliedRevision
 
 
 @dataclass
@@ -159,6 +162,8 @@ class ImplementationPlan:
     generated_at: str = field(default_factory=lambda: datetime.now().isoformat())
     focus_area: str | None = None
     summary: str = ""
+    # Cumulative revision history across auto-revision sessions
+    revision_history: list["AppliedRevision"] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for JSON serialization."""
@@ -170,18 +175,106 @@ class ImplementationPlan:
             "summary": self.summary,
             "total_tasks": self.total_tasks,
             "estimated_total_effort": self.estimated_total_effort,
+            "revision_history": [r.to_dict() for r in self.revision_history],
+            "revision_count": self.revision_count,
         }
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "ImplementationPlan":
-        """Create from dictionary."""
+        """Create from dictionary.
+
+        Maintains backward compatibility with plans that don't have
+        revision_history field.
+        """
+        # Import inside method to avoid circular imports
+        from .guardrails.auto_revision import AppliedRevision
+
+        # Handle backward compatibility - old plans without revision_history
+        revision_history = []
+        if "revision_history" in data:
+            revision_history = [
+                AppliedRevision.from_dict(r) for r in data["revision_history"]
+            ]
+
         return cls(
             groups=[TaskGroup.from_dict(g) for g in data.get("groups", [])],
             quick_wins=[Task.from_dict(t) for t in data.get("quick_wins", [])],
             generated_at=data.get("generated_at", datetime.now().isoformat()),
             focus_area=data.get("focus_area"),
             summary=data.get("summary", ""),
+            revision_history=revision_history,
         )
+
+    @property
+    def revision_count(self) -> int:
+        """Number of revisions applied to this plan."""
+        return len(self.revision_history)
+
+    def add_revisions(self, revisions: list["AppliedRevision"]) -> None:
+        """Add revisions to the cumulative history.
+
+        Args:
+            revisions: List of applied revisions to append.
+        """
+        self.revision_history.extend(revisions)
+
+    def format_revision_history(self) -> str:
+        """Format cumulative revision history as human-readable markdown.
+
+        Returns:
+            Markdown-formatted revision history string.
+        """
+        # Import inside method to avoid circular imports
+        from .guardrails.base import RevisionType
+
+        lines = ["## Plan Revision History", ""]
+
+        if not self.revision_history:
+            lines.append("*No revisions have been applied to this plan.*")
+            return "\n".join(lines)
+
+        lines.append(f"**Total revisions**: {self.revision_count}")
+        lines.append("")
+
+        for i, applied in enumerate(self.revision_history, 1):
+            rev = applied.revision
+            finding = applied.finding
+
+            lines.append(
+                f"### {i}. {rev.revision_type.value.replace('_', ' ').title()}"
+            )
+            lines.append(f"- **Applied at**: {applied.applied_at}")
+            lines.append(f"- **Rule**: {finding.rule_id}")
+            lines.append(f"- **Reason**: {rev.rationale}")
+            lines.append(f"- **Confidence**: {finding.confidence:.0%}")
+
+            if not applied.success:
+                lines.append(f"- **Status**: Failed - {applied.error}")
+            else:
+                lines.append("- **Status**: Success")
+
+            # Type-specific details
+            if rev.revision_type == RevisionType.ADD_TASK and rev.new_task:
+                lines.append(
+                    f"- **Added**: Task '{rev.new_task.id}' - {rev.new_task.title}"
+                )
+            elif rev.revision_type == RevisionType.MODIFY_TASK:
+                lines.append(f"- **Modified**: Task '{rev.target_task_id}'")
+                if rev.modifications:
+                    lines.append(
+                        f"- **Fields changed**: {', '.join(rev.modifications.keys())}"
+                    )
+            elif rev.revision_type == RevisionType.REMOVE_TASK:
+                lines.append(f"- **Removed**: Task '{rev.target_task_id}'")
+            elif rev.revision_type == RevisionType.ADD_DEPENDENCY:
+                for from_id, to_id in rev.dependency_additions:
+                    lines.append(f"- **Dependency added**: {from_id} -> {to_id}")
+            elif rev.revision_type == RevisionType.REORDER_TASKS:
+                lines.append(f"- **Reordered**: Task '{rev.target_task_id}'")
+
+            lines.append("")
+
+        return "\n".join(lines)
 
     @property
     def total_tasks(self) -> int:
