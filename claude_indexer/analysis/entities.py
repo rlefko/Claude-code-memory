@@ -24,6 +24,12 @@ class EntityType(Enum):
     DOCUMENTATION = "documentation"
     TEST = "test"
     CHAT_HISTORY = "chat_history"  # Claude Code conversation summaries
+    # Design document types (Milestone 8.1)
+    SPEC = "spec"  # Design specifications
+    PRD = "prd"  # Product requirements documents
+    TDD = "tdd"  # Technical design documents
+    ADR = "adr"  # Architecture decision records
+    REQUIREMENT = "requirement"  # Individual requirements from specs
 
 
 class RelationType(Enum):

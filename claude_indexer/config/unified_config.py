@@ -274,6 +274,35 @@ class LoggingConfig(BaseModel):
     )
 
 
+class DesignDocsConfig(BaseModel):
+    """Configuration for design document indexing (Milestone 8.1).
+
+    Controls how design documents (PRDs, TDDs, ADRs, specs) are indexed
+    and parsed for Plan Mode context integration.
+    """
+
+    enabled: bool = Field(default=True, description="Enable design docs indexing")
+    paths: list[str] = Field(
+        default_factory=lambda: ["docs/", "specs/", "design/", "*.md"],
+        description="Paths to search for design docs",
+    )
+    doc_patterns: dict[str, list[str]] = Field(
+        default_factory=lambda: {
+            "prd": ["**/PRD*.md", "**/prd*.md", "**/product-requirements*.md"],
+            "tdd": ["**/TDD*.md", "**/tdd*.md", "**/technical-design*.md"],
+            "adr": ["**/adr/*.md", "**/ADR*.md", "**/adr-*.md"],
+            "spec": ["**/SPEC*.md", "**/spec*.md", "**/specification*.md"],
+        },
+        description="Glob patterns for each doc type",
+    )
+    extract_requirements: bool = Field(
+        default=True, description="Extract requirements as separate entities"
+    )
+    max_section_depth: int = Field(
+        default=3, ge=1, le=6, description="Max heading depth to extract"
+    )
+
+
 class ProjectInfo(BaseModel):
     """Project identification and metadata."""
 
@@ -313,6 +342,9 @@ class UnifiedConfig(BaseModel):
     )
     logging: LoggingConfig = Field(
         default_factory=LoggingConfig, description="Logging configuration"
+    )
+    design_docs: DesignDocsConfig = Field(
+        default_factory=DesignDocsConfig, description="Design docs configuration"
     )
 
     class Config:

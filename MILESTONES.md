@@ -160,13 +160,13 @@ UserPromptSubmit Hook
 
 | ID | Task | Priority | Status |
 |----|------|----------|--------|
-| 8.1.1 | Create new EntityTypes: SPEC, PRD, TDD, ADR, REQUIREMENT | HIGH | NEW |
-| 8.1.2 | Implement `DesignDocParser` in `claude_indexer/analysis/` | HIGH | NEW |
-| 8.1.3 | Add document type detection (patterns in filename/content) | HIGH | NEW |
-| 8.1.4 | Implement section extraction from markdown | MEDIUM | NEW |
-| 8.1.5 | Extract individual requirements as separate entities | MEDIUM | NEW |
-| 8.1.6 | Create relations between docs and code components | MEDIUM | NEW |
-| 8.1.7 | Add design doc paths to configuration | LOW | NEW |
+| 8.1.1 | Create new EntityTypes: SPEC, PRD, TDD, ADR, REQUIREMENT | HIGH | DONE |
+| 8.1.2 | Implement `DesignDocParser` in `claude_indexer/analysis/` | HIGH | DONE |
+| 8.1.3 | Add document type detection (patterns in filename/content) | HIGH | DONE |
+| 8.1.4 | Implement section extraction from markdown | MEDIUM | DONE |
+| 8.1.5 | Extract individual requirements as separate entities | MEDIUM | DONE |
+| 8.1.6 | Create relations between docs and code components | MEDIUM | DONE |
+| 8.1.7 | Add design doc paths to configuration | LOW | DONE |
 
 **Entity Types**:
 ```python
@@ -209,15 +209,25 @@ class DesignDocsConfig(BaseModel):
 ```
 
 **Testing Requirements**:
-- [ ] Test document type detection with various formats
-- [ ] Test section extraction from real PRD/TDD files
-- [ ] Test requirement entity creation
-- [ ] Verify relations to code components
+- [x] Test document type detection with various formats
+- [x] Test section extraction from real PRD/TDD files
+- [x] Test requirement entity creation
+- [x] Verify relations to code components
 
 **Success Criteria**:
-- Auto-detect document type with >90% accuracy
-- Extract sections and requirements correctly
-- Create searchable entities for all design docs
+- [x] Auto-detect document type with >90% accuracy
+- [x] Extract sections and requirements correctly
+- [x] Create searchable entities for all design docs
+
+**Implementation Details** (Milestone 8.1 Complete):
+- Created `claude_indexer/analysis/design_doc_parser.py` with DesignDocParser
+- Added 5 new EntityTypes: SPEC, PRD, TDD, ADR, REQUIREMENT
+- Added DesignDocsConfig to `claude_indexer/config/unified_config.py`
+- Document type detection via filename patterns and content patterns
+- Section extraction respects configurable max_section_depth
+- Requirement extraction supports RFC 2119 (MUST/SHALL/SHOULD/MAY), [REQ-XXX], and numbered lists
+- Relations created between documents, sections, and requirements
+- Tests: 30 unit tests covering all functionality
 
 ---
 
