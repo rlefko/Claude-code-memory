@@ -3,10 +3,7 @@
 Milestone 7.2: Hook Infrastructure Extension
 """
 
-import pytest
-
 from claude_indexer.hooks.planning.exploration import (
-    ExplorationHints,
     ExplorationHintsConfig,
     ExplorationHintsGenerator,
 )

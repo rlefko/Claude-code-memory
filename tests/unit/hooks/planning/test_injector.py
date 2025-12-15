@@ -3,10 +3,6 @@
 Milestone 7.2: Hook Infrastructure Extension
 """
 
-from pathlib import Path
-
-import pytest
-
 from claude_indexer.hooks.planning.exploration import ExplorationHintsConfig
 from claude_indexer.hooks.planning.guidelines import PlanningGuidelinesConfig
 from claude_indexer.hooks.planning.injector import (

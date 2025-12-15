@@ -3,8 +3,6 @@
 Milestone 7.2: Hook Infrastructure Extension
 """
 
-import pytest
-
 from claude_indexer.hooks.planning.guidelines import (
     PlanningGuidelines,
     PlanningGuidelinesConfig,
