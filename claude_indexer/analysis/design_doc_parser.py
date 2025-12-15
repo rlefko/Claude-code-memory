@@ -100,7 +100,7 @@ class DesignDocParser(CodeParser):
         if file_path.suffix.lower() not in self.SUPPORTED_EXTENSIONS:
             return False
 
-        # Check filename patterns
+        # Check filename patterns - only claim files that match design doc patterns
         filename = file_path.name.lower()
         for _doc_type, patterns in self.DOC_TYPE_PATTERNS.items():
             for pattern, match_type in patterns:
@@ -108,10 +108,10 @@ class DesignDocParser(CodeParser):
                     if re.search(pattern, filename, re.IGNORECASE):
                         return True
 
-        # For .md files that don't match filename patterns,
-        # we'll try to detect from content during parsing
-        # Return True for all .md files, but detection happens in parse()
-        return True
+        # For .md files that don't match filename patterns, let MarkdownParser
+        # handle them. Content-based detection still works during parsing for
+        # files that DO match filename patterns.
+        return False
 
     def get_supported_extensions(self) -> list[str]:
         """Return list of supported file extensions."""
