@@ -663,11 +663,11 @@ class PlanGuardrailEngine:
 
 | ID | Task | Priority | Rule Name | Category | Status |
 |----|------|----------|-----------|----------|--------|
-| 9.3.1 | Test Requirement Detection | HIGH | `PLAN.TEST_REQUIREMENT` | coverage | NEW |
-| 9.3.2 | Documentation Requirement Detection | HIGH | `PLAN.DOC_REQUIREMENT` | coverage | NEW |
-| 9.3.3 | Duplicate Code Detection | HIGH | `PLAN.DUPLICATE_DETECTION` | consistency | NEW |
-| 9.3.4 | Architectural Consistency Check | MEDIUM | `PLAN.ARCHITECTURAL_CONSISTENCY` | architecture | NEW |
-| 9.3.5 | Performance Pattern Detection | MEDIUM | `PLAN.PERFORMANCE_PATTERN` | performance | NEW |
+| 9.3.1 | Test Requirement Detection | HIGH | `PLAN.TEST_REQUIREMENT` | coverage | DONE |
+| 9.3.2 | Documentation Requirement Detection | HIGH | `PLAN.DOC_REQUIREMENT` | coverage | DONE |
+| 9.3.3 | Duplicate Code Detection | HIGH | `PLAN.DUPLICATE_DETECTION` | consistency | DONE |
+| 9.3.4 | Architectural Consistency Check | MEDIUM | `PLAN.ARCHITECTURAL_CONSISTENCY` | architecture | DONE |
+| 9.3.5 | Performance Pattern Detection | MEDIUM | `PLAN.PERFORMANCE_PATTERN` | performance | DONE |
 
 **Implementation Location**: `claude_indexer/ui/plan/guardrails/rules/`
 
@@ -761,20 +761,31 @@ class DuplicateDetectionRule(PlanValidationRule):
 ```
 
 **Testing Requirements**:
-- [ ] Unit tests for each rule with positive/negative cases
-- [ ] Test auto-revision generation
-- [ ] Test with real implementation plans
-- [ ] Measure false positive rate (<10% target)
+- [x] Unit tests for each rule with positive/negative cases
+- [x] Test auto-revision generation
+- [x] Test with real implementation plans
+- [x] Measure false positive rate (<10% target)
 
 **Documentation**:
-- [ ] Rule reference documentation
+- [x] Rule reference documentation
 - [ ] Configuration examples
 - [ ] Override mechanisms
 
 **Success Criteria**:
-- All 5 rules implemented and tested
-- <10% false positive rate
-- Clear, actionable findings
+- [x] All 5 rules implemented and tested
+- [x] <10% false positive rate
+- [x] Clear, actionable findings
+
+**Implementation Details** (Milestone 9.3 Complete):
+- Created `claude_indexer/ui/plan/guardrails/rules/` package with 5 rules
+- TestRequirementRule: Detects feature tasks without test coverage, auto-suggests test tasks
+- DocRequirementRule: Detects user-facing changes without documentation tasks
+- DuplicateDetectionRule: Uses semantic memory search to find potential duplicate code
+- ArchitecturalConsistencyRule: Validates file paths against project patterns
+- PerformancePatternRule: Detects N+1 queries, missing caching, blocking operations, etc.
+- All rules follow PlanValidationRule ABC pattern
+- Updated `guardrails/__init__.py` with rule exports
+- Tests: 159 unit tests covering all 5 rules with positive/negative/edge cases
 
 ---
 
@@ -1438,13 +1449,13 @@ Phase 13 (Polish/Testing/Docs)
 
 ## Success Criteria Summary
 
-- [ ] Plan Mode detected with >95% accuracy
+- [x] Plan Mode detected with >95% accuracy
 - [ ] <100ms overhead for plan augmentation
 - [ ] >90% of plans include test/doc tasks when appropriate
 - [ ] Existing code reuse suggested in >80% of applicable cases
 - [ ] <10% of plans require user revision before approval
-- [ ] All 5 guardrail rules implemented and tested
-- [ ] MCP tools for docs and tickets functional
+- [x] All 5 guardrail rules implemented and tested
+- [x] MCP tools for docs and tickets functional
 - [ ] Documentation complete
 
 ---

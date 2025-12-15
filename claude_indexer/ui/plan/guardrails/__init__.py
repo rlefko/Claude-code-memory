@@ -15,6 +15,13 @@ Classes:
     PlanGuardrailEngine: Engine for orchestrating rule validation
     PlanGuardrailEngineConfig: Configuration for the engine
     PlanGuardrailResult: Aggregated validation results
+
+Rules:
+    TestRequirementRule: Ensures features have test tasks
+    DocRequirementRule: Ensures user-facing changes have doc tasks
+    DuplicateDetectionRule: Detects tasks duplicating existing code
+    ArchitecturalConsistencyRule: Verifies tasks align with patterns
+    PerformancePatternRule: Flags performance anti-patterns
 """
 
 from .base import (
@@ -33,6 +40,13 @@ from .engine import (
     PlanGuardrailResult,
     RuleExecutionResult,
     create_guardrail_engine,
+)
+from .rules import (
+    ArchitecturalConsistencyRule,
+    DocRequirementRule,
+    DuplicateDetectionRule,
+    PerformancePatternRule,
+    TestRequirementRule,
 )
 
 __all__ = [
@@ -55,4 +69,10 @@ __all__ = [
     # Configuration
     "PlanGuardrailConfig",
     "RuleConfig",
+    # Rules
+    "ArchitecturalConsistencyRule",
+    "DocRequirementRule",
+    "DuplicateDetectionRule",
+    "PerformancePatternRule",
+    "TestRequirementRule",
 ]
