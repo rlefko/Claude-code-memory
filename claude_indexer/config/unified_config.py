@@ -347,6 +347,66 @@ class GitHubIssuesConfig(BaseModel):
     )
 
 
+class PlanGuardrailRuleConfig(BaseModel):
+    """Individual rule configuration for plan guardrails."""
+
+    enabled: bool = Field(default=True, description="Enable this rule")
+    severity: str = Field(default="MEDIUM", description="Rule severity override")
+    threshold: float | None = Field(default=None, description="Rule-specific threshold")
+    auto_revise: bool = Field(
+        default=True, description="Enable auto-revision for this rule"
+    )
+
+    class Config:
+        extra = "allow"
+
+
+class PlanGuardrailConfig(BaseModel):
+    """Configuration for plan validation guardrails (Milestone 9.1).
+
+    Controls which guardrail rules run during plan validation,
+    their severity levels, and auto-revision behavior.
+    """
+
+    enabled: bool = Field(default=True, description="Enable plan guardrails")
+    rules: dict[str, PlanGuardrailRuleConfig] = Field(
+        default_factory=dict, description="Rule-specific configuration"
+    )
+    severity_thresholds: dict[str, str] = Field(
+        default_factory=lambda: {"block": "HIGH", "warn": "MEDIUM"},
+        description="Severity thresholds for blocking vs warning",
+    )
+
+    # Category toggles
+    check_coverage: bool = Field(
+        default=True, description="Enable coverage rules (test/doc requirements)"
+    )
+    check_consistency: bool = Field(
+        default=True, description="Enable consistency rules (duplicate detection)"
+    )
+    check_architecture: bool = Field(
+        default=True, description="Enable architecture rules (pattern alignment)"
+    )
+    check_performance: bool = Field(
+        default=True, description="Enable performance rules (anti-pattern detection)"
+    )
+
+    # Auto-revision settings
+    auto_revise: bool = Field(default=True, description="Apply auto-revisions to plans")
+    max_revisions_per_plan: int = Field(
+        default=10, ge=1, le=50, description="Maximum revisions per plan"
+    )
+    revision_confidence_threshold: float = Field(
+        default=0.7,
+        ge=0.0,
+        le=1.0,
+        description="Minimum confidence for auto-revision",
+    )
+    max_findings_per_rule: int = Field(
+        default=10, ge=1, le=100, description="Maximum findings per rule"
+    )
+
+
 class ProjectInfo(BaseModel):
     """Project identification and metadata."""
 
@@ -396,6 +456,10 @@ class UnifiedConfig(BaseModel):
     github_issues: GitHubIssuesConfig = Field(
         default_factory=GitHubIssuesConfig,
         description="GitHub Issues integration configuration",
+    )
+    plan_guardrails: PlanGuardrailConfig = Field(
+        default_factory=PlanGuardrailConfig,
+        description="Plan validation guardrails configuration (Milestone 9.1)",
     )
 
     class Config:
