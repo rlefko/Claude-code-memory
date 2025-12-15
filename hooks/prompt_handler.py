@@ -25,15 +25,11 @@ from claude_indexer.hooks.plan_mode_detector import (  # noqa: E402
 
 # Intent patterns (compiled for performance)
 PATTERNS = {
-    "search": re.compile(
-        r"\b(find|search|look for|where is|locate|show me)\b", re.I
-    ),
+    "search": re.compile(r"\b(find|search|look for|where is|locate|show me)\b", re.I),
     "debug": re.compile(
         r"\b(error|bug|fix|issue|problem|broken|failing|crash)\b", re.I
     ),
-    "implement": re.compile(
-        r"\b(add|create|implement|build|write|make)\b", re.I
-    ),
+    "implement": re.compile(r"\b(add|create|implement|build|write|make)\b", re.I),
     "refactor": re.compile(
         r"\b(refactor|improve|clean up|optimize|restructure)\b", re.I
     ),

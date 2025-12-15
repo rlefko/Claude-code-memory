@@ -43,8 +43,7 @@ PLANNING_BOOSTERS = re.compile(
 
 # Negative indicators (reduce confidence if present)
 NON_PLANNING_INDICATORS = re.compile(
-    r"\b(execute|run|apply|implement this|do it|start coding|"
-    r"write the code)\b",
+    r"\b(execute|run|apply|implement this|do it|start coding|" r"write the code)\b",
     re.IGNORECASE,
 )
 
@@ -120,9 +119,7 @@ class PlanModeDetector:
             confidence_threshold: Override default threshold
         """
         self.plan_context = plan_context or PlanModeContext()
-        self.confidence_threshold = (
-            confidence_threshold or self.CONFIDENCE_THRESHOLD
-        )
+        self.confidence_threshold = confidence_threshold or self.CONFIDENCE_THRESHOLD
 
     def detect(self, prompt: str) -> PlanModeDetectionResult:
         """Detect Plan Mode from a user prompt.
@@ -257,8 +254,7 @@ class PlanModeDetector:
                 source=PlanModeSource.PLANNING_KEYWORD,
                 detected_markers=markers,
                 reasoning=(
-                    f"Planning keywords detected "
-                    f"with {confidence:.0%} confidence"
+                    f"Planning keywords detected " f"with {confidence:.0%} confidence"
                 ),
             )
 
