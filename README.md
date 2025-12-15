@@ -18,7 +18,7 @@ graph LR
     PO -.-> IDX
 ```
 
-**[Architecture](ARCHITECTURE.md)** | **[Changelog](CHANGELOG.md)** | **[CLI Reference](docs/CLI_REFERENCE.md)** | **[Memory Guard](docs/MEMORY_GUARD.md)** | **[UI Consistency](docs/UI_CONSISTENCY_GUIDE.md)**
+**[Architecture](docs/ARCHITECTURE.md)** | **[Changelog](CHANGELOG.md)** | **[CLI Reference](docs/CLI_REFERENCE.md)** | **[Memory Guard](docs/MEMORY_GUARD.md)** | **[UI Consistency](docs/UI_CONSISTENCY_GUIDE.md)**
 
 ---
 
@@ -279,7 +279,22 @@ cd ..
 
 # 5. Install global wrapper (creates claude-indexer command)
 ./install.sh  # On Windows: Use Git Bash or WSL
+
+# 6. Install and Start Qdrant Vector Database
+docker pull qdrant/qdrant
+docker run -p 6333:6333 -p 6334:6334 -v $(pwd)/qdrant_storage:/qdrant/storage qdrant/qdrant
+
+# Verify Qdrant is running:
+curl http://localhost:6333/health
+
+# 7. Index your project (30 seconds for most codebases)
+claude-indexer -p /your/project -c my-project
+
+# 8. Add MCP server to Claude (auto-configures from settings.txt)
+claude-indexer add-mcp -c my-project
 ```
+
+**That's it!** Claude now has photographic memory of your entire codebase.
 
 ## 🌐 Web Explorer - Visualize Your Indexed Codebases
 
@@ -309,23 +324,6 @@ make
 The web explorer connects directly to your Qdrant database to visualize all indexed collections created by this indexer.
 
 ---
-
-# 6. Install and Start Qdrant Vector Database
-## Docker Installation (Recommended)
-docker pull qdrant/qdrant
-docker run -p 6333:6333 -p 6334:6334 -v $(pwd)/qdrant_storage:/qdrant/storage qdrant/qdrant
-
-# Verify Qdrant is running:
-curl http://localhost:6333/health
-
-# 7. Index your project (30 seconds for most codebases)
-claude-indexer -p /your/project -c my-project
-
-# 8. Add MCP server to Claude (auto-configures from settings.txt)
-claude-indexer add-mcp -c my-project
-```
-
-**That's it!** Claude now has photographic memory of your entire codebase.
 
 ## 🎯 Proven Results
 
@@ -560,13 +558,6 @@ python utils/manual_memory_backup.py restore -f backup.json      # Restore from 
 python utils/qdrant_stats.py -c my-project --detailed           # Collection health stats
 ```
 
-### Chat Analysis
-```bash
-claude-indexer chat index -p . -c my-project --limit 50         # Process chat history
-claude-indexer chat search "debugging patterns" -p . -c my-project  # Search chat insights
-claude-indexer chat html-report -p . -c my-project              # Generate HTML report
-```
-
 ## 🎯 Prerequisites
 
 **Required Software:**
@@ -577,7 +568,6 @@ claude-indexer chat html-report -p . -c my-project              # Generate HTML 
 
 **API Keys Needed:**
 - **Embeddings**: Voyage AI key (recommended) OR OpenAI key
-- **Chat Analysis**: OpenAI key (for GPT-4.1-mini)
 - **Qdrant**: API key (only if authentication enabled)
 
 **Quick Prerequisites Check:**
@@ -588,28 +578,16 @@ docker --version   # Any recent version
 claude --version   # Claude Code CLI
 ```
 
-## 🏗️ Architecture
-
-```
-┌─────────────────┐    ┌──────────────────┐    ┌─────────────────┐
-│   Claude Code   │◄──►│  Enhanced MCP    │◄──►│   Qdrant DB     │
-│                 │    │     Server       │    │   (Vectors)     │
-└─────────────────┘    └──────────────────┘    └─────────────────┘
-                                                        ▲
-                       ┌────────────────┐               │
-                       │ Tree-sitter +  │───────────────┘
-                       │     Jedi       │
-                       └────────────────┘
-```
-
 ## 📚 Documentation
 
-- [CLAUDE.md](CLAUDE.md) - Comprehensive setup and architecture details
+- [Architecture](docs/ARCHITECTURE.md) - System design with mermaid diagrams
+- [CLAUDE.md](CLAUDE.md) - Developer guide and memory usage instructions
 - [Installation Guide](docs/installation.md) - Platform-specific setup
+- [CLI Reference](docs/CLI_REFERENCE.md) - Complete command documentation
 - [Memory Functions](docs/memory-functions.md) - Advanced memory usage
 - [Troubleshooting](docs/TROUBLESHOOTING.md) - Common issues and solutions
+- [Memory Guard](docs/MEMORY_GUARD.md) - Code quality enforcement
 - [UI Consistency Guide](docs/UI_CONSISTENCY_GUIDE.md) - Design system enforcement
-- [UI CI Setup](docs/UI_CI_SETUP.md) - CI integration for UI quality
 
 ## 🔧 Common Setup Issues
 
