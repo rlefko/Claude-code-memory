@@ -303,6 +303,50 @@ class DesignDocsConfig(BaseModel):
     )
 
 
+class LinearConfig(BaseModel):
+    """Configuration for Linear issue tracker integration (Milestone 8.3).
+
+    Controls how Linear issues are queried and cached for Plan Mode.
+    Requires LINEAR_API_KEY environment variable.
+    """
+
+    enabled: bool = Field(default=False, description="Enable Linear integration")
+    team_ids: list[str] = Field(
+        default_factory=list,
+        description="Linear team IDs to query (empty = all accessible)",
+    )
+    cache_ttl_seconds: int = Field(
+        default=300,
+        ge=60,
+        le=3600,
+        description="Cache TTL for ticket data (5 minutes default)",
+    )
+
+
+class GitHubIssuesConfig(BaseModel):
+    """Configuration for GitHub Issues integration (Milestone 8.3).
+
+    Controls how GitHub issues are queried and cached for Plan Mode.
+    Requires GITHUB_TOKEN environment variable.
+    """
+
+    enabled: bool = Field(default=False, description="Enable GitHub Issues integration")
+    repos: list[str] = Field(
+        default_factory=list,
+        description="Repos to query (owner/repo format, empty = all accessible)",
+    )
+    include_prs: bool = Field(
+        default=False,
+        description="Include pull requests in ticket search",
+    )
+    cache_ttl_seconds: int = Field(
+        default=300,
+        ge=60,
+        le=3600,
+        description="Cache TTL for ticket data (5 minutes default)",
+    )
+
+
 class ProjectInfo(BaseModel):
     """Project identification and metadata."""
 
@@ -345,6 +389,13 @@ class UnifiedConfig(BaseModel):
     )
     design_docs: DesignDocsConfig = Field(
         default_factory=DesignDocsConfig, description="Design docs configuration"
+    )
+    linear: LinearConfig = Field(
+        default_factory=LinearConfig, description="Linear integration configuration"
+    )
+    github_issues: GitHubIssuesConfig = Field(
+        default_factory=GitHubIssuesConfig,
+        description="GitHub Issues integration configuration",
     )
 
     class Config:
