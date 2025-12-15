@@ -588,12 +588,12 @@ class PlanValidationRule(ABC):
 
 | ID | Task | Priority | Status |
 |----|------|----------|--------|
-| 9.2.1 | Create `PlanGuardrailEngine` coordinator class | HIGH | NEW |
-| 9.2.2 | Implement rule discovery (auto-load from directory) | HIGH | NEW |
-| 9.2.3 | Add parallel rule execution support | MEDIUM | NEW |
-| 9.2.4 | Implement severity filtering | MEDIUM | NEW |
-| 9.2.5 | Create `PlanGuardrailResult` aggregation | MEDIUM | NEW |
-| 9.2.6 | Add performance timing for rules | LOW | NEW |
+| 9.2.1 | Create `PlanGuardrailEngine` coordinator class | HIGH | DONE |
+| 9.2.2 | Implement rule discovery (auto-load from directory) | HIGH | DONE |
+| 9.2.3 | Add parallel rule execution support | MEDIUM | DEFERRED |
+| 9.2.4 | Implement severity filtering | MEDIUM | DONE |
+| 9.2.5 | Create `PlanGuardrailResult` aggregation | MEDIUM | DONE |
+| 9.2.6 | Add performance timing for rules | LOW | DONE |
 
 **PlanGuardrailEngine**:
 ```python
@@ -625,15 +625,33 @@ class PlanGuardrailEngine:
 ```
 
 **Testing Requirements**:
-- [ ] Test rule discovery
-- [ ] Test parallel execution
-- [ ] Test severity filtering
-- [ ] Benchmark validation latency
+- [x] Test rule discovery
+- [ ] Test parallel execution (DEFERRED: flag added, implementation pending)
+- [x] Test severity filtering
+- [x] Benchmark validation latency
 
 **Success Criteria**:
-- Rules auto-discovered from directory
-- Parallel execution reduces latency
-- <500ms total validation time
+- [x] Rules auto-discovered from directory
+- [ ] Parallel execution reduces latency (DEFERRED: sequential first)
+- [x] <500ms total validation time
+
+**Implementation Details** (Milestone 9.2 Complete):
+- Created `claude_indexer/ui/plan/guardrails/engine.py` with:
+  - `PlanGuardrailEngineConfig` dataclass (timeout, error handling, confidence threshold)
+  - `RuleExecutionResult` dataclass for individual rule results
+  - `PlanGuardrailResult` dataclass with findings, statistics, error tracking
+  - `PlanGuardrailEngine` class with full rule lifecycle management
+- Key features:
+  - `register()` / `unregister()` for manual rule registration
+  - `discover_rules()` for auto-discovery from directory
+  - `validate()` runs all enabled rules with configurable filtering
+  - `validate_fast()` runs only fast rules (<100ms) for sync checks
+  - `validate_category()` runs rules in specific category
+  - Confidence threshold filtering
+  - Max findings per rule limiting
+  - Error handling with continue_on_error option
+  - Performance timing recorded per rule and total
+- Tests: 42 unit tests covering all functionality
 
 ---
 
