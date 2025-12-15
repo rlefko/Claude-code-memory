@@ -489,12 +489,12 @@ class PlanModeGuard {
 
 | ID | Task | Priority | Status |
 |----|------|----------|--------|
-| 9.1.1 | Create `claude_indexer/ui/plan/guardrails/` package | HIGH | NEW |
-| 9.1.2 | Define `PlanValidationContext` dataclass | HIGH | NEW |
-| 9.1.3 | Define `PlanValidationFinding` dataclass | HIGH | NEW |
-| 9.1.4 | Define `PlanRevision` and `RevisionType` | HIGH | NEW |
-| 9.1.5 | Create abstract `PlanValidationRule` base class | HIGH | NEW |
-| 9.1.6 | Create `PlanGuardrailConfig` for rule configuration | MEDIUM | NEW |
+| 9.1.1 | Create `claude_indexer/ui/plan/guardrails/` package | HIGH | DONE |
+| 9.1.2 | Define `PlanValidationContext` dataclass | HIGH | DONE |
+| 9.1.3 | Define `PlanValidationFinding` dataclass | HIGH | DONE |
+| 9.1.4 | Define `PlanRevision` and `RevisionType` | HIGH | DONE |
+| 9.1.5 | Create abstract `PlanValidationRule` base class | HIGH | DONE |
+| 9.1.6 | Create `PlanGuardrailConfig` for rule configuration | MEDIUM | DONE |
 
 **Core Data Structures**:
 ```python
@@ -558,14 +558,25 @@ class PlanValidationRule(ABC):
 ```
 
 **Testing Requirements**:
-- [ ] Unit tests for all data classes
-- [ ] Test serialization/deserialization
-- [ ] Test validation context memory search
+- [x] Unit tests for all data classes
+- [x] Test serialization/deserialization
+- [x] Test validation context memory search
 
 **Success Criteria**:
-- All data structures defined and tested
-- Follows existing pattern from claude_indexer/rules/base.py
-- Memory search integration works
+- [x] All data structures defined and tested
+- [x] Follows existing pattern from claude_indexer/rules/base.py
+- [x] Memory search integration works
+
+**Implementation Details** (Milestone 9.1 Complete):
+- Created `claude_indexer/ui/plan/guardrails/` package with base.py, config.py, __init__.py
+- RevisionType enum with ADD_TASK, MODIFY_TASK, REMOVE_TASK, ADD_DEPENDENCY, REORDER_TASKS
+- PlanRevision dataclass with serialization support
+- PlanValidationFinding dataclass with evidence and suggested revision
+- PlanValidationContext with plan, config, memory search integration
+- PlanValidationRule ABC following rules/base.py pattern
+- PlanGuardrailConfig Pydantic model with category toggles, auto-revise settings
+- Added plan_guardrails to UnifiedConfig
+- Tests: 52 unit tests covering all functionality
 
 ---
 
