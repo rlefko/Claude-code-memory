@@ -2326,6 +2326,7 @@ class ParserRegistry:
     def _register_default_parsers(self) -> None:
         """Register default parsers."""
         from .css_parser import CSSParser
+        from .design_doc_parser import DesignDocParser
         from .html_parser import HTMLParser
         from .javascript_parser import JavaScriptParser
         from .json_parser import JSONParser
@@ -2414,6 +2415,8 @@ class ParserRegistry:
         self.register(CSSParser())
 
         # Documentation parsers
+        # Design doc parser first to handle PRD/TDD/ADR/SPEC files
+        self.register(DesignDocParser())
         self.register(MarkdownParser())
         self.register(TextParser())
 

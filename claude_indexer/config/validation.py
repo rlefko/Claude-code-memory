@@ -116,6 +116,7 @@ class ConfigValidator:
         "hooks",
         "guard",
         "logging",
+        "design_docs",  # Milestone 8.1
         "$schema",
     }
 
