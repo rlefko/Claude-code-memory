@@ -15,6 +15,7 @@ This file provides guidance to Claude Code when working with code in this reposi
 | [CHANGELOG.md](CHANGELOG.md) | Version history and migration notes |
 | [docs/CLI_REFERENCE.md](docs/CLI_REFERENCE.md) | Complete CLI command reference |
 | [docs/HOOKS.md](docs/HOOKS.md) | Claude Code hooks system |
+| [docs/PLAN_MODE.md](docs/PLAN_MODE.md) | Plan Mode quality guardrails |
 | [docs/MEMORY_GUARD.md](docs/MEMORY_GUARD.md) | Code quality enforcement (27 checks) |
 | [docs/UI_CONSISTENCY_GUIDE.md](docs/UI_CONSISTENCY_GUIDE.md) | UI consistency checking guide |
 | [docs/UI_CI_SETUP.md](docs/UI_CI_SETUP.md) | CI integration for UI quality gates |
@@ -272,9 +273,55 @@ search_similar("pattern")  # Returns all entity and chunk types
 
 ```python
 search_similar("function name", searchMode="hybrid")    # Best of both worlds
-search_similar("exact terms", searchMode="keyword")     # BM25 term matching  
+search_similar("exact terms", searchMode="keyword")     # BM25 term matching
 search_similar("concept query", searchMode="semantic")  # AI understanding only
 ```
+
+## 📋 Plan Mode Integration
+
+When using Claude Code's Plan Mode, this project includes enhanced quality checks that automatically validate implementation plans.
+
+### Activation
+
+```bash
+# Explicit marker (recommended)
+@plan Create an authentication system
+
+# Planning keywords (auto-detected)
+Create a step-by-step plan for implementing user authentication
+
+# Environment variable
+export CLAUDE_PLAN_MODE=true
+```
+
+### What Happens Automatically
+
+1. **Planning guidelines injected** - Code reuse checks, testing requirements, documentation requirements
+2. **Exploration hints generated** - Suggested MCP queries for duplicate detection and pattern discovery
+3. **Quality guardrails validate the plan** - 5 rules check for missing tests, docs, duplicates, architecture issues
+4. **Auto-revision** - Missing tasks (tests, docs) are automatically added
+5. **QA verification** - Final check before user approval
+
+### 5 Quality Rules
+
+| Rule | Detects | Auto-Fix |
+|------|---------|----------|
+| PLAN.TEST_REQUIREMENT | Features without tests | Adds test task |
+| PLAN.DOC_REQUIREMENT | User-facing changes without docs | Adds doc task |
+| PLAN.DUPLICATE_DETECTION | Code that already exists | References existing |
+| PLAN.ARCHITECTURAL_CONSISTENCY | Non-standard file paths | Adds warning |
+| PLAN.PERFORMANCE_PATTERN | N+1 queries, missing cache | Adds note |
+
+### Memory Integration During Planning
+
+```python
+# These MCP commands are suggested during planning:
+mcp__claude-memory-memory__search_similar("feature", entityTypes=["function", "class"])
+mcp__claude-memory-memory__read_graph(entity="Component", mode="smart")
+mcp__claude-memory-memory__search_docs("specification", docTypes=["prd", "tdd"])
+```
+
+See [Plan Mode Guide](docs/PLAN_MODE.md) for complete documentation.
 
 ## Virtual Environment Usage
 
