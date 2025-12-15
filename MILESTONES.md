@@ -801,14 +801,14 @@ class DuplicateDetectionRule(PlanValidationRule):
 
 | ID | Task | Priority | Status |
 |----|------|----------|--------|
-| 10.1.1 | Create `AutoRevisionEngine` class | HIGH | NEW |
-| 10.1.2 | Implement revision sorting by severity | HIGH | NEW |
-| 10.1.3 | Implement conflict detection | HIGH | NEW |
-| 10.1.4 | Add circular dependency prevention | HIGH | NEW |
-| 10.1.5 | Implement revision application methods | HIGH | NEW |
-| 10.1.6 | Create `RevisedPlan` result dataclass | MEDIUM | NEW |
-| 10.1.7 | Add post-revision dependency resolution | MEDIUM | NEW |
-| 10.1.8 | Add iteration limit (prevent infinite loops) | HIGH | NEW |
+| 10.1.1 | Create `AutoRevisionEngine` class | HIGH | DONE |
+| 10.1.2 | Implement revision sorting by severity | HIGH | DONE |
+| 10.1.3 | Implement conflict detection | HIGH | DONE |
+| 10.1.4 | Add circular dependency prevention | HIGH | DONE |
+| 10.1.5 | Implement revision application methods | HIGH | DONE |
+| 10.1.6 | Create `RevisedPlan` result dataclass | MEDIUM | DONE |
+| 10.1.7 | Add post-revision dependency resolution | MEDIUM | DONE |
+| 10.1.8 | Add iteration limit (prevent infinite loops) | HIGH | DONE |
 
 **AutoRevisionEngine**:
 ```python
@@ -869,15 +869,30 @@ class AutoRevisionEngine:
 ```
 
 **Testing Requirements**:
-- [ ] Test revision application for each type
-- [ ] Test conflict detection
-- [ ] Test circular dependency prevention
-- [ ] Test iteration limit enforcement
+- [x] Test revision application for each type
+- [x] Test conflict detection
+- [x] Test circular dependency prevention
+- [x] Test iteration limit enforcement
 
 **Success Criteria**:
-- Revisions applied without conflicts
-- No circular dependencies introduced
-- Iteration limit prevents infinite loops
+- [x] Revisions applied without conflicts
+- [x] No circular dependencies introduced
+- [x] Iteration limit prevents infinite loops
+
+**Implementation Details** (Milestone 10.1 Complete):
+- Created `claude_indexer/ui/plan/guardrails/auto_revision.py` with:
+  - `AppliedRevision` dataclass for tracking applied revisions
+  - `RevisedPlan` dataclass with audit trail formatting
+  - `AutoRevisionEngine` class with full revision lifecycle
+- Key features:
+  - Revision sorting by severity (CRITICAL > HIGH > MEDIUM > LOW) and type order
+  - Conflict detection for all RevisionTypes (ADD_TASK, MODIFY_TASK, REMOVE_TASK, ADD_DEPENDENCY, REORDER_TASKS)
+  - Circular dependency detection using DFS algorithm
+  - Post-revision dependency resolution (removes orphaned dependencies)
+  - MAX_ITERATIONS = 3 to prevent infinite loops
+  - Configurable via PlanGuardrailConfig (auto_revise, max_revisions_per_plan, revision_confidence_threshold)
+  - Human-readable audit trail via `format_audit_trail()`
+- Tests: 55 unit tests covering all functionality
 
 ---
 
