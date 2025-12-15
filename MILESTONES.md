@@ -1341,7 +1341,7 @@ class TestPlanModeIntegration:
 
 ---
 
-### Milestone 13.2: Performance Optimization
+### Milestone 13.2: Performance Optimization ✅ DONE
 
 **Objective**: Meet all performance targets.
 
@@ -1349,12 +1349,12 @@ class TestPlanModeIntegration:
 
 | ID | Task | Priority | Status |
 |----|------|----------|--------|
-| 13.2.1 | Profile Plan Mode detection latency | HIGH | NEW |
-| 13.2.2 | Profile guidelines injection latency | HIGH | NEW |
-| 13.2.3 | Profile validation latency | HIGH | NEW |
-| 13.2.4 | Optimize hot paths | MEDIUM | NEW |
-| 13.2.5 | Add caching where beneficial | MEDIUM | NEW |
-| 13.2.6 | Create performance benchmarks | MEDIUM | NEW |
+| 13.2.1 | Profile Plan Mode detection latency | HIGH | DONE |
+| 13.2.2 | Profile guidelines injection latency | HIGH | DONE |
+| 13.2.3 | Profile validation latency | HIGH | DONE |
+| 13.2.4 | Optimize hot paths | MEDIUM | DONE |
+| 13.2.5 | Add caching where beneficial | MEDIUM | DONE |
+| 13.2.6 | Create performance benchmarks | MEDIUM | DONE |
 
 **Performance Targets**:
 | Operation | Target | Budget |
@@ -1368,9 +1368,38 @@ class TestPlanModeIntegration:
 | **Total Overhead** | **<100ms** | (excluding validation) |
 
 **Testing Requirements**:
-- [ ] Benchmark all operations
-- [ ] Test under load
-- [ ] Verify targets met
+- [x] Benchmark all operations
+- [x] Test under load
+- [x] Verify targets met
+
+**Implementation Details** (Milestone 13.2 Complete):
+- Replaced `time.time()` with `time.perf_counter()` across all Plan Mode files for sub-millisecond precision
+- Added LRU caching for CLAUDE.md project patterns loading (mtime-based invalidation)
+- Added LRU caching for entity extraction in exploration hints (128-entry cache)
+- Created comprehensive benchmark suite: `tests/benchmarks/test_plan_mode_performance.py`
+
+**Files Modified**:
+- `claude_indexer/hooks/plan_mode_detector.py` - Timing precision
+- `claude_indexer/hooks/planning/guidelines.py` - Timing + LRU cache
+- `claude_indexer/hooks/planning/exploration.py` - Timing + entity cache
+- `claude_indexer/hooks/planning/injector.py` - Timing precision
+- `claude_indexer/hooks/plan_qa.py` - Timing precision
+- `claude_indexer/ui/plan/guardrails/engine.py` - Timing precision
+- `claude_indexer/ui/plan/guardrails/auto_revision.py` - Timing precision
+
+**New Files**:
+- `tests/benchmarks/test_plan_mode_performance.py` - 7 benchmark test classes
+
+**Benchmark Tests**:
+- `TestPlanModeDetectionPerformance` - <10ms p95 target
+- `TestGuidelinesGenerationPerformance` - <20ms p95 target
+- `TestExplorationHintsPerformance` - <30ms p95 target
+- `TestPlanQAPerformance` - <50ms p95 target
+- `TestGuardrailValidationPerformance` - <500ms target
+- `TestAutoRevisionPerformance` - <200ms target
+- `TestEndToEndPlanModePerformance` - <100ms overhead target
+- `TestMemoryUsage` - <50MB peak usage
+- `TestScalabilityMetrics` - Linear scaling verification
 
 **Success Criteria**:
 - All performance targets met

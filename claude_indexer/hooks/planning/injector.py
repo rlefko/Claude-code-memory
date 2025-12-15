@@ -198,7 +198,7 @@ class PlanContextInjector:
                 injected_text="",
             )
 
-        start_time = time.time()
+        start_time = time.perf_counter()
         result = PlanContextInjectionResult()
 
         try:
@@ -227,7 +227,7 @@ class PlanContextInjector:
             result.success = False
             result.error = str(e)
 
-        result.total_time_ms = (time.time() - start_time) * 1000
+        result.total_time_ms = (time.perf_counter() - start_time) * 1000
         return result
 
     def verify_plan_output(self, plan_text: str) -> "PlanQAResult":

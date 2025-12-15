@@ -16,6 +16,10 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+# Module-level cache for project patterns (keyed by path and mtime)
+_pattern_cache: dict[tuple[str, float], list[str]] = {}
+_MAX_PATTERN_CACHE_SIZE = 32
+
 
 @dataclass
 class PlanningGuidelinesConfig:
@@ -47,9 +51,13 @@ class PlanningGuidelinesConfig:
             "enabled": self.enabled,
             "include_code_reuse_check": self.include_code_reuse_check,
             "include_testing_requirements": self.include_testing_requirements,
-            "include_documentation_requirements": self.include_documentation_requirements,
+            "include_documentation_requirements": (
+                self.include_documentation_requirements
+            ),
             "include_architecture_alignment": self.include_architecture_alignment,
-            "include_performance_considerations": self.include_performance_considerations,
+            "include_performance_considerations": (
+                self.include_performance_considerations
+            ),
             "custom_guidelines": self.custom_guidelines,
             "project_patterns_path": self.project_patterns_path,
         }
@@ -124,13 +132,15 @@ class PlanningGuidelinesGenerator:
     """
 
     # Template sections (from MILESTONES.md lines 866-901)
+    # fmt: off
     CODE_REUSE_TEMPLATE = """## 1. Code Reuse Check (CRITICAL)
 Before proposing ANY new function, class, or component:
 - Search the codebase: `{mcp_prefix}search_similar("functionality")`
 - Check existing patterns: `{mcp_prefix}read_graph(entity="Component", mode="relationships")`
 - If similar exists, plan to REUSE or EXTEND it
 - State explicitly: "Verified no existing implementation" or "Will extend existing Y"
-"""
+"""  # noqa: E501
+    # fmt: on
 
     TESTING_TEMPLATE = """## 2. Testing Requirements
 Every plan that modifies code MUST include:
@@ -195,7 +205,7 @@ Flag any step that may introduce:
         Returns:
             PlanningGuidelines with full text and structured sections
         """
-        start_time = time.time()
+        start_time = time.perf_counter()
 
         sections: dict[str, str] = {}
         mcp_commands: list[str] = []
@@ -205,7 +215,7 @@ Flag any step that may introduce:
             mcp_commands.extend(
                 [
                     f'{self._mcp_prefix}search_similar("query")',
-                    f'{self._mcp_prefix}read_graph(entity="Name", mode="relationships")',
+                    f'{self._mcp_prefix}read_graph(entity="Name", mode="relations")',
                 ]
             )
 
@@ -231,7 +241,7 @@ Flag any step that may introduce:
         # Assemble full text
         full_text = self._assemble_full_text(sections)
 
-        generation_time_ms = (time.time() - start_time) * 1000
+        generation_time_ms = (time.perf_counter() - start_time) * 1000
 
         return PlanningGuidelines(
             full_text=full_text,
@@ -260,22 +270,17 @@ Flag any step that may introduce:
         1. Project root
         2. .claude/ directory
 
+        Uses caching based on file path and modification time for performance.
+
         Returns:
             List of extracted patterns (max 10)
         """
-        patterns: list[str] = []
-
         # Check custom path first
         if self.config.project_patterns_path:
             custom_path = Path(self.config.project_patterns_path)
-            if custom_path.exists():
-                try:
-                    content = custom_path.read_text()
-                    patterns = self._extract_patterns(content)
-                    if patterns:
-                        return patterns
-                except (OSError, UnicodeDecodeError):
-                    pass
+            patterns = self._load_patterns_from_file(custom_path)
+            if patterns:
+                return patterns
 
         # Standard locations
         claude_md_paths = [
@@ -284,16 +289,48 @@ Flag any step that may introduce:
         ]
 
         for path in claude_md_paths:
-            if path.exists():
-                try:
-                    content = path.read_text()
-                    patterns = self._extract_patterns(content)
-                    if patterns:
-                        break
-                except (OSError, UnicodeDecodeError):
-                    continue
+            patterns = self._load_patterns_from_file(path)
+            if patterns:
+                return patterns
 
-        return patterns
+        return []
+
+    def _load_patterns_from_file(self, path: Path) -> list[str]:
+        """Load patterns from a specific file with caching.
+
+        Args:
+            path: Path to the file to load
+
+        Returns:
+            List of extracted patterns, or empty list if file doesn't exist
+        """
+        if not path.exists():
+            return []
+
+        try:
+            # Get file modification time for cache key
+            mtime = path.stat().st_mtime
+            cache_key = (str(path.absolute()), mtime)
+
+            # Check cache
+            if cache_key in _pattern_cache:
+                return _pattern_cache[cache_key]
+
+            # Load and extract patterns
+            content = path.read_text()
+            patterns = self._extract_patterns(content)
+
+            # Store in cache (with size limit)
+            if len(_pattern_cache) >= _MAX_PATTERN_CACHE_SIZE:
+                # Remove oldest entry (simple LRU)
+                oldest_key = next(iter(_pattern_cache))
+                del _pattern_cache[oldest_key]
+
+            _pattern_cache[cache_key] = patterns
+            return patterns
+
+        except (OSError, UnicodeDecodeError):
+            return []
 
     def _extract_patterns(self, content: str) -> list[str]:
         """Extract patterns from CLAUDE.md content.

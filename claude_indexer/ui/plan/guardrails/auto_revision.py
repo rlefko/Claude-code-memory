@@ -223,7 +223,7 @@ class AutoRevisionEngine:
         Returns:
             RevisedPlan with original, revised plans and audit trail
         """
-        start_time = time.time()
+        start_time = time.perf_counter()
         current_plan = deepcopy(plan)
         all_applied: list[AppliedRevision] = []
         all_skipped: list[tuple[PlanRevision, str]] = []
@@ -237,7 +237,7 @@ class AutoRevisionEngine:
                 revisions_applied=[],
                 revisions_skipped=[],
                 iterations_used=0,
-                total_time_ms=(time.time() - start_time) * 1000,
+                total_time_ms=(time.perf_counter() - start_time) * 1000,
             )
 
         # Filter to findings that can be auto-revised
@@ -316,7 +316,7 @@ class AutoRevisionEngine:
             revisions_applied=all_applied,
             revisions_skipped=all_skipped,
             iterations_used=iterations_used,
-            total_time_ms=(time.time() - start_time) * 1000,
+            total_time_ms=(time.perf_counter() - start_time) * 1000,
         )
 
     def _finding_id(self, finding: PlanValidationFinding) -> str:
