@@ -18,6 +18,9 @@ Classes:
     AutoRevisionEngine: Engine for applying auto-revisions to plans
     AppliedRevision: Record of applied revision
     RevisedPlan: Result of auto-revision process
+    PlanSnapshot: Snapshot of a plan at a point in time
+    RevisionHistoryManager: Manager for plan snapshots and versioning
+    PlanPersistence: Save/load plans and history to JSON files
 
 Rules:
     TestRequirementRule: Ensures features have test tasks
@@ -50,6 +53,11 @@ from .engine import (
     RuleExecutionResult,
     create_guardrail_engine,
 )
+from .revision_history import (
+    PlanPersistence,
+    PlanSnapshot,
+    RevisionHistoryManager,
+)
 from .rules import (
     ArchitecturalConsistencyRule,
     DocRequirementRule,
@@ -71,6 +79,10 @@ __all__ = [
     "RevisedPlan",
     "RuleExecutionResult",
     "PlanGuardrailResult",
+    # Revision history (Milestone 10.2)
+    "PlanPersistence",
+    "PlanSnapshot",
+    "RevisionHistoryManager",
     # Base rule class
     "PlanValidationRule",
     # Engines
