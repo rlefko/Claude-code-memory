@@ -1862,6 +1862,166 @@ docs/
 
 ---
 
+## Phase 17: MCP Server Error Handling & Security
+
+**Goal**: Complete Phase 4 (Error Handling) and Phase 5 (Security) for the mcp-qdrant-memory MCP server.
+
+**Status**: ✅ Complete
+
+**PRD Reference**: `mcp-qdrant-memory/docs/PRD.md` - Sections 4.5, 4.7, 4.8
+
+### Milestone 17.1: Security - Scoped Fetch Override ✅ DONE
+
+**Objective**: Fix critical security issue where Qdrant API key was leaked to all fetch requests.
+
+**File Modified:**
+- `mcp-qdrant-memory/src/fetch-override.ts`
+
+**Change**: Previously, the fetch override added the Qdrant API key to ALL fetch requests globally, including third-party APIs like Voyage AI, OpenAI, Linear, and GitHub. This leaked the API key to external services.
+
+**Fix**: Scoped API key injection to only Qdrant URLs using `url.startsWith(qdrantUrl)` check.
+
+**Tests Created:**
+- `mcp-qdrant-memory/src/__tests__/fetch-override.test.ts` (18 tests)
+
+#### Acceptance Criteria ✅
+- [x] Qdrant API key only added to Qdrant URL requests
+- [x] Voyage AI requests do NOT contain Qdrant API key
+- [x] OpenAI/Linear/GitHub requests do NOT contain Qdrant API key
+- [x] All 18 security tests passing
+
+---
+
+### Milestone 17.2: Security - Input Size Validation ✅ DONE
+
+**Objective**: Add input size limits to prevent DoS attacks via oversized payloads.
+
+**File Modified:**
+- `mcp-qdrant-memory/src/validation.ts`
+
+**Constants Added:**
+```typescript
+export const INPUT_LIMITS = {
+  QUERY_MAX_LENGTH: 10000,
+  ENTITIES_MAX_COUNT: 1000,
+  ENTITY_NAME_MAX_LENGTH: 500,
+  OBSERVATIONS_MAX_COUNT: 100,
+  OBSERVATION_MAX_LENGTH: 50000,
+  RELATIONS_MAX_COUNT: 1000,
+  ENTITY_NAMES_MAX_COUNT: 1000,
+} as const;
+```
+
+**Validators Updated:**
+- `validateSearchSimilarRequest` - query length
+- `validateSearchDocsRequest` - query length
+- `validateCreateEntitiesRequest` - entity count, name length, observations count/length
+- `validateAddObservationsRequest` - entity name, contents count/length
+- `validateCreateRelationsRequest` - relations count
+- `validateDeleteEntitiesRequest` - entity names count
+
+**Tests Extended:**
+- `mcp-qdrant-memory/src/__tests__/validation.test.ts` (+22 tests)
+
+#### Acceptance Criteria ✅
+- [x] All validators enforce size limits
+- [x] Clear error messages indicate limit exceeded
+- [x] All 22 new validation tests passing
+
+---
+
+### Milestone 17.3: Edge Case - BM25 Unicode Support ✅ DONE
+
+**Objective**: Fix Unicode stripping in BM25 text processing.
+
+**File Modified:**
+- `mcp-qdrant-memory/src/bm25/bm25Service.ts`
+
+**Change**: Replaced ASCII-only regex with Unicode-aware regex.
+
+```typescript
+// Before (stripped Unicode)
+.replace(/[^\w\s]/g, ' ')
+
+// After (preserves Unicode letters and numbers)
+.replace(/[^\p{L}\p{N}\s]/gu, ' ')
+```
+
+**Tests Extended:**
+- `mcp-qdrant-memory/src/__tests__/bm25Service.test.ts` (+7 Unicode tests)
+
+**Languages Tested:**
+- Chinese (用户认证)
+- Japanese (ユーザー認証)
+- Korean (사용자 인증)
+- Cyrillic (аутентификации)
+- Arabic (مصادقة)
+- Accented Latin (autenticación)
+
+#### Acceptance Criteria ✅
+- [x] Unicode characters preserved in BM25 indexing
+- [x] All 7 Unicode tests passing
+- [x] Mixed ASCII/Unicode content searchable
+
+---
+
+### Milestone 17.4: Error Handling - Context Preservation ✅ DONE
+
+**Objective**: Preserve error context when wrapping errors in McpError.
+
+**File Modified:**
+- `mcp-qdrant-memory/src/index.ts`
+
+**Change**: Added error cause to McpError for stack trace preservation.
+
+```typescript
+} catch (error) {
+  const mcpError = new McpError(
+    ErrorCode.InternalError,
+    error instanceof Error ? error.message : String(error)
+  );
+  // Preserve original error for debugging
+  (mcpError as any).cause = error;
+  throw mcpError;
+}
+```
+
+#### Acceptance Criteria ✅
+- [x] Original error attached as cause
+- [x] Stack traces preserved for debugging
+- [x] All existing tests still passing
+
+---
+
+### Phase 17 Summary
+
+**Files Modified:**
+- `mcp-qdrant-memory/src/fetch-override.ts` - Scoped API key injection
+- `mcp-qdrant-memory/src/validation.ts` - Added INPUT_LIMITS and size validation
+- `mcp-qdrant-memory/src/bm25/bm25Service.ts` - Unicode-aware regex
+- `mcp-qdrant-memory/src/index.ts` - Error context preservation
+
+**Files Created:**
+- `mcp-qdrant-memory/src/__tests__/fetch-override.test.ts` - Security tests
+
+**Tests Added:**
+- 18 fetch-override security tests
+- 22 input validation size limit tests
+- 7 BM25 Unicode support tests
+- **Total: 47 new tests**
+
+**MCP Server Progress Update:**
+- Phase 1 (Testing): 100% complete - 362 tests → 407 tests
+- Phase 2 (CI/CD): 100% complete
+- Phase 3 (Code Quality): 100% complete
+- Phase 4 (Error Handling): 100% complete ✅ NEW
+- Phase 5 (Security): 100% complete ✅ NEW
+- Phase 6 (Coverage): 100% complete
+
+**Overall MCP Server Progress: 100% ✅**
+
+---
+
 ## Appendix: Plan Guardrail Rule Specifications
 
 ### A.1 Coverage Rules (2)
