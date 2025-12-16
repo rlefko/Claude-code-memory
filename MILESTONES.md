@@ -20,7 +20,8 @@
 7. [Phase 12: Plan QA Verification](#phase-12-plan-qa-verification)
 8. [Phase 13: Polish, Testing & Documentation](#phase-13-polish-testing--documentation)
 9. [Phase 14: MCP Server Enhancement - Testing Foundation](#phase-14-mcp-server-enhancement---testing-foundation)
-10. [Appendix: Rule Specifications](#appendix-plan-guardrail-rule-specifications)
+10. [Phase 15: MCP Server Code Quality & Documentation](#phase-15-mcp-server-code-quality--documentation)
+11. [Appendix: Rule Specifications](#appendix-plan-guardrail-rule-specifications)
 
 ---
 
@@ -1716,6 +1717,101 @@ docs/
 - [x] Coverage reports uploaded as artifacts
 - [x] Security audit job runs
 - [x] CI badge visible in README
+
+---
+
+## Phase 15: MCP Server Code Quality & Documentation
+
+**Goal**: Add ESLint, Prettier, pre-commit hooks, and governance documentation to mcp-qdrant-memory.
+
+**PRD Reference**: `mcp-qdrant-memory/docs/PRD.md` - Section 4.3: Code Quality Tooling, Section 4.4: Documentation
+
+---
+
+### Milestone 15.1: Code Quality Tooling ✅ DONE
+
+**Objective**: Establish linting and formatting infrastructure for the MCP server.
+
+#### Tasks
+
+| ID | Task | Priority | Status |
+|----|------|----------|--------|
+| 15.1.1 | Install ESLint, Prettier, Husky, lint-staged dependencies | HIGH | DONE |
+| 15.1.2 | Create ESLint configuration (`eslint.config.mjs`) with TypeScript support | HIGH | DONE |
+| 15.1.3 | Create Prettier configuration (`.prettierrc`, `.prettierignore`) | HIGH | DONE |
+| 15.1.4 | Update `package.json` with lint/format scripts | HIGH | DONE |
+| 15.1.5 | Initialize Husky and configure pre-commit hook | MEDIUM | DONE |
+| 15.1.6 | Update CI workflow with lint job | HIGH | DONE |
+
+**Implementation Details:**
+- ESLint v9 flat config with `typescript-eslint/recommendedTypeChecked`
+- Relaxed rules for existing codebase (warnings for `any`-related rules)
+- Prettier with double quotes, semicolons, 100 char width
+- Pre-commit hook runs lint-staged (ESLint + Prettier on staged files)
+- CI lint job runs `npm run lint` and `npm run format:check`
+
+**New npm Scripts:**
+```json
+{
+  "lint": "eslint src/",
+  "lint:fix": "eslint src/ --fix",
+  "format": "prettier --write .",
+  "format:check": "prettier --check .",
+  "typecheck": "tsc --noEmit"
+}
+```
+
+#### Acceptance Criteria ✅
+- [x] ESLint configured and passing (0 errors, warnings allowed)
+- [x] Prettier configured and passing
+- [x] Pre-commit hooks functional
+- [x] CI lint job passing
+
+---
+
+### Milestone 15.2: Governance Documentation ✅ DONE
+
+**Objective**: Add contributor documentation and project governance files.
+
+#### Tasks
+
+| ID | Task | Priority | Status |
+|----|------|----------|--------|
+| 15.2.1 | Create `CONTRIBUTING.md` with development guidelines | HIGH | DONE |
+| 15.2.2 | Create `CHANGELOG.md` with version history | HIGH | DONE |
+| 15.2.3 | Create `LICENSE` file (MIT) | HIGH | DONE |
+
+**Implementation Details:**
+- CONTRIBUTING.md includes development setup, code style, testing, PR process
+- CHANGELOG.md follows Keep a Changelog format
+- LICENSE file matches package.json MIT declaration
+
+#### Acceptance Criteria ✅
+- [x] CONTRIBUTING.md present with development guidelines
+- [x] CHANGELOG.md present with version history
+- [x] LICENSE file present
+
+---
+
+### Phase 15 Summary
+
+**Files Created:**
+- `mcp-qdrant-memory/eslint.config.mjs` - ESLint configuration
+- `mcp-qdrant-memory/.prettierrc` - Prettier configuration
+- `mcp-qdrant-memory/.prettierignore` - Prettier ignore patterns
+- `mcp-qdrant-memory/.husky/pre-commit` - Pre-commit hook
+- `mcp-qdrant-memory/CONTRIBUTING.md` - Contributor guide
+- `mcp-qdrant-memory/CHANGELOG.md` - Version history
+- `mcp-qdrant-memory/LICENSE` - MIT license
+
+**Files Modified:**
+- `mcp-qdrant-memory/package.json` - Added lint/format scripts, lint-staged config
+- `mcp-qdrant-memory/.github/workflows/ci.yml` - Added lint job
+
+**CI/CD:**
+- Lint job added to GitHub Actions workflow
+- Runs ESLint and Prettier checks on all PRs
+- 0 errors required, warnings allowed for gradual cleanup
 
 ---
 
