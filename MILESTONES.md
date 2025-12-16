@@ -1677,7 +1677,7 @@ docs/
 
 ---
 
-### Milestone 14.3: CI/CD Integration (Planned)
+### Milestone 14.3: CI/CD Integration ✅ DONE
 
 **Objective**: Integrate testing into CI/CD pipeline.
 
@@ -1685,9 +1685,37 @@ docs/
 
 | ID | Task | Priority | Status |
 |----|------|----------|--------|
-| 14.3.1 | Add GitHub Actions workflow for MCP tests | HIGH | PLANNED |
-| 14.3.2 | Configure coverage thresholds in CI | MEDIUM | PLANNED |
-| 14.3.3 | Add test status badge to README | LOW | PLANNED |
+| 14.3.1 | Add GitHub Actions workflow for MCP tests | HIGH | DONE |
+| 14.3.2 | Configure coverage thresholds in CI | MEDIUM | DONE |
+| 14.3.3 | Add test status badge to README | LOW | DONE |
+
+#### Implementation Details
+
+**New Files Created:**
+- `mcp-qdrant-memory/.github/workflows/ci.yml` - GitHub Actions CI workflow
+
+**Workflow Configuration:**
+- **Triggers:** Push and PR to main/master branches
+- **Concurrency:** Cancel in-progress runs on same branch
+- **Jobs:**
+  - `build`: TypeScript compilation with artifact upload
+  - `typecheck`: Strict type validation (`tsc --noEmit`)
+  - `test`: Tests with coverage (Node.js 18, 20, 22 matrix)
+  - `security`: npm audit for vulnerability scanning
+- **Caching:** npm dependencies cached for faster runs
+- **Artifacts:** Coverage reports uploaded (Node 20)
+
+**README Updates:**
+- Added CI badge linking to GitHub Actions workflow
+
+#### Acceptance Criteria ✅
+- [x] CI workflow runs on push/PR to main/master
+- [x] Build job compiles TypeScript successfully
+- [x] Type check job validates types
+- [x] Test job runs on Node.js 18, 20, 22 matrix (362 tests)
+- [x] Coverage reports uploaded as artifacts
+- [x] Security audit job runs
+- [x] CI badge visible in README
 
 ---
 
