@@ -724,6 +724,7 @@ def run_stop_check(
 
     if output_json:
         print(result.to_json())
+        sys.stdout.flush()
     elif result.findings:
         if result.should_block:
             print(format_findings_for_claude(result))

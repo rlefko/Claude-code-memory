@@ -4,6 +4,7 @@ Tests the PlanGuardrailEngine, PlanGuardrailResult, and related classes.
 """
 
 import tempfile
+import time
 from pathlib import Path
 
 import pytest
@@ -186,6 +187,47 @@ class MockManyFindingsRule(PlanValidationRule):
         return None
 
 
+class MockSlowRule(PlanValidationRule):
+    """Mock rule with configurable delay for timing tests."""
+
+    def __init__(self, delay_ms: float = 50.0, suffix: str = ""):
+        super().__init__()
+        self.delay_ms = delay_ms
+        self.suffix = suffix
+
+    @property
+    def rule_id(self) -> str:
+        return f"PLAN.MOCK_SLOW{self.suffix}"
+
+    @property
+    def name(self) -> str:
+        return f"Mock Slow Rule {self.suffix}"
+
+    @property
+    def category(self) -> str:
+        return "performance"
+
+    @property
+    def default_severity(self) -> Severity:
+        return Severity.LOW
+
+    @property
+    def is_fast(self) -> bool:
+        return False
+
+    def validate(self, context: PlanValidationContext) -> list[PlanValidationFinding]:
+        time.sleep(self.delay_ms / 1000.0)  # Convert ms to seconds
+        return [
+            self._create_finding(
+                summary=f"Slow finding {self.suffix}",
+                confidence=0.9,
+            )
+        ]
+
+    def suggest_revision(self, finding, context):
+        return None
+
+
 # --- Fixtures ---
 
 
@@ -257,6 +299,7 @@ class TestPlanGuardrailEngineConfig:
         assert config.continue_on_error is True
         assert config.min_confidence == 0.7
         assert config.parallel_execution is False
+        assert config.max_parallel_workers == 4
 
     def test_custom_values(self):
         """Test custom configuration values."""
@@ -265,11 +308,13 @@ class TestPlanGuardrailEngineConfig:
             continue_on_error=False,
             min_confidence=0.5,
             parallel_execution=True,
+            max_parallel_workers=8,
         )
         assert config.fast_rule_timeout_ms == 50.0
         assert config.continue_on_error is False
         assert config.min_confidence == 0.5
         assert config.parallel_execution is True
+        assert config.max_parallel_workers == 8
 
 
 class TestRuleExecutionResult:
@@ -778,3 +823,164 @@ class TestCreateGuardrailEngine:
                 rules_dir=Path(tmpdir),
             )
         assert isinstance(engine, PlanGuardrailEngine)
+
+
+class TestParallelExecution:
+    """Tests for parallel rule execution (Milestone 9.2.3)."""
+
+    def test_parallel_disabled_by_default(
+        self,
+        sample_config: PlanGuardrailConfig,
+    ):
+        """Test parallel execution is disabled by default."""
+        engine = PlanGuardrailEngine(sample_config)
+        assert engine.engine_config.parallel_execution is False
+
+    def test_parallel_execution_same_results(
+        self,
+        sample_config: PlanGuardrailConfig,
+        sample_context: PlanValidationContext,
+    ):
+        """Test parallel execution produces same findings as sequential."""
+        # Sequential execution
+        engine_seq = PlanGuardrailEngine(sample_config)
+        engine_seq.register(MockCoverageRule())
+        engine_seq.register(MockConsistencyRule())
+        result_seq = engine_seq.validate(sample_context)
+
+        # Parallel execution
+        engine_config = PlanGuardrailEngineConfig(parallel_execution=True)
+        engine_par = PlanGuardrailEngine(sample_config, engine_config)
+        engine_par.register(MockCoverageRule())
+        engine_par.register(MockConsistencyRule())
+        result_par = engine_par.validate(sample_context)
+
+        # Same findings count
+        assert result_seq.rules_executed == result_par.rules_executed
+        assert len(result_seq.findings) == len(result_par.findings)
+        assert result_seq.rules_skipped == result_par.rules_skipped
+
+        # Same finding rule IDs (order may differ)
+        seq_rule_ids = {f.rule_id for f in result_seq.findings}
+        par_rule_ids = {f.rule_id for f in result_par.findings}
+        assert seq_rule_ids == par_rule_ids
+
+    def test_parallel_error_handling(
+        self,
+        sample_config: PlanGuardrailConfig,
+        sample_context: PlanValidationContext,
+    ):
+        """Test error handling in parallel mode."""
+        engine_config = PlanGuardrailEngineConfig(parallel_execution=True)
+        engine = PlanGuardrailEngine(sample_config, engine_config)
+        engine.register(MockCoverageRule())
+        engine.register(MockErrorRule())
+
+        result = engine.validate(sample_context)
+        assert result.rules_executed == 2
+        assert len(result.errors) == 1
+        assert "Mock rule error" in result.errors[0][1]
+        # Coverage rule findings should still be present
+        assert len(result.findings) == 1
+
+    def test_parallel_with_empty_rules(
+        self,
+        sample_config: PlanGuardrailConfig,
+        sample_context: PlanValidationContext,
+    ):
+        """Test parallel execution with no rules."""
+        engine_config = PlanGuardrailEngineConfig(parallel_execution=True)
+        engine = PlanGuardrailEngine(sample_config, engine_config)
+
+        result = engine.validate(sample_context)
+        assert result.rules_executed == 0
+        assert result.rules_skipped == 0
+        assert len(result.findings) == 0
+
+    def test_parallel_max_workers_config(self):
+        """Test max_parallel_workers configuration."""
+        config = PlanGuardrailEngineConfig(
+            parallel_execution=True,
+            max_parallel_workers=2,
+        )
+        assert config.max_parallel_workers == 2
+
+    def test_parallel_faster_with_slow_rules(
+        self,
+        sample_config: PlanGuardrailConfig,
+        sample_context: PlanValidationContext,
+    ):
+        """Test parallel is faster than sequential with slow rules."""
+        delay_ms = 50.0  # 50ms delay per rule
+
+        # Sequential execution with 3 slow rules
+        engine_seq = PlanGuardrailEngine(sample_config)
+        engine_seq.register(MockSlowRule(delay_ms=delay_ms, suffix="_1"))
+        engine_seq.register(MockSlowRule(delay_ms=delay_ms, suffix="_2"))
+        engine_seq.register(MockSlowRule(delay_ms=delay_ms, suffix="_3"))
+
+        start_seq = time.perf_counter()
+        result_seq = engine_seq.validate(sample_context)
+        time_seq = (time.perf_counter() - start_seq) * 1000
+
+        # Parallel execution with 3 slow rules
+        engine_config = PlanGuardrailEngineConfig(
+            parallel_execution=True, max_parallel_workers=3
+        )
+        engine_par = PlanGuardrailEngine(sample_config, engine_config)
+        engine_par.register(MockSlowRule(delay_ms=delay_ms, suffix="_1"))
+        engine_par.register(MockSlowRule(delay_ms=delay_ms, suffix="_2"))
+        engine_par.register(MockSlowRule(delay_ms=delay_ms, suffix="_3"))
+
+        start_par = time.perf_counter()
+        result_par = engine_par.validate(sample_context)
+        time_par = (time.perf_counter() - start_par) * 1000
+
+        # Both should execute same number of rules
+        assert result_seq.rules_executed == 3
+        assert result_par.rules_executed == 3
+
+        # Sequential should take ~3x the delay (150ms+)
+        # Parallel should take ~1x the delay (50ms+)
+        # Allow some margin for overhead
+        assert time_seq >= delay_ms * 2.5, f"Sequential took {time_seq}ms"
+        assert (
+            time_par < time_seq * 0.8
+        ), f"Parallel ({time_par}ms) not faster than seq ({time_seq}ms)"
+
+    def test_parallel_skips_disabled_rules(
+        self,
+        sample_context: PlanValidationContext,
+    ):
+        """Test parallel execution skips disabled rules."""
+        config = PlanGuardrailConfig(
+            enabled=True,
+            check_coverage=False,  # Disable coverage
+            check_consistency=True,
+        )
+        context = PlanValidationContext(
+            plan=sample_context.plan,
+            config=config,
+        )
+        engine_config = PlanGuardrailEngineConfig(parallel_execution=True)
+        engine = PlanGuardrailEngine(config, engine_config)
+        engine.register(MockCoverageRule())  # coverage category - disabled
+        engine.register(MockConsistencyRule())  # consistency category - enabled
+
+        result = engine.validate(context)
+        assert result.rules_executed == 1
+        assert result.rules_skipped == 1
+
+    def test_parallel_filters_low_confidence(
+        self,
+        sample_config: PlanGuardrailConfig,
+        sample_context: PlanValidationContext,
+    ):
+        """Test parallel execution filters low confidence findings."""
+        engine_config = PlanGuardrailEngineConfig(parallel_execution=True)
+        engine = PlanGuardrailEngine(sample_config, engine_config)
+        engine.register(MockLowConfidenceRule())  # 0.3 confidence
+
+        result = engine.validate(sample_context)
+        assert result.rules_executed == 1
+        assert len(result.findings) == 0  # Filtered out

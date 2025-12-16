@@ -19,6 +19,8 @@ from .models import (
 )
 
 if TYPE_CHECKING:
+    from claude_indexer.hooks.plan_qa import PlanQAResult
+
     from ..ci.audit_runner import CIAuditResult
     from ..ci.cross_file_analyzer import CrossFileClusterResult
     from ..config import UIQualityConfig
@@ -320,6 +322,125 @@ class MetricsCollector:
             "average_revisions": report.average_revision_count,
             "adoption_rate": report.plan_adoption_rate,
             "rejection_reasons": report.rejection_reasons_summary(),
+        }
+
+    # Plan QA metrics methods (Milestone 12.2.3)
+    def record_qa_verification(
+        self,
+        qa_result: "PlanQAResult",
+        plan_id: str | None = None,
+    ) -> bool:
+        """Record QA verification results as a metrics snapshot.
+
+        Creates a MetricSnapshot with QA-specific metrics from the
+        PlanQAResult for historical tracking and analysis.
+
+        Args:
+            qa_result: PlanQAResult from verification.
+            plan_id: Optional plan ID for correlation.
+
+        Returns:
+            True if recorded successfully.
+        """
+        report = self.load()
+
+        # Get git context
+        commit_hash, branch_name = self.get_git_context()
+
+        # Calculate checks passed (4 total checks)
+        checks_failed = sum(
+            [
+                1 if qa_result.missing_tests else 0,
+                1 if qa_result.missing_docs else 0,
+                1 if qa_result.potential_duplicates else 0,
+                1 if qa_result.architecture_warnings else 0,
+            ]
+        )
+        checks_passed = 4 - checks_failed
+
+        # Calculate total issues found
+        issues_found = (
+            len(qa_result.missing_tests)
+            + len(qa_result.missing_docs)
+            + len(qa_result.potential_duplicates)
+            + len(qa_result.architecture_warnings)
+        )
+
+        # Create snapshot with QA metrics
+        snapshot = MetricSnapshot(
+            timestamp=datetime.now().isoformat(),
+            tier=2,  # Plan QA is tier 2 (design-time)
+            qa_checks_passed=checks_passed,
+            qa_issues_found=issues_found,
+            qa_missing_tests=len(qa_result.missing_tests),
+            qa_missing_docs=len(qa_result.missing_docs),
+            qa_potential_duplicates=len(qa_result.potential_duplicates),
+            qa_architecture_warnings=len(qa_result.architecture_warnings),
+            qa_verification_time_ms=qa_result.verification_time_ms,
+            commit_hash=commit_hash,
+            branch_name=branch_name,
+        )
+
+        # Add snapshot to report
+        report.snapshots.append(snapshot)
+
+        # Enforce rolling window
+        if len(report.snapshots) > self.MAX_SNAPSHOTS:
+            report.snapshots = report.snapshots[-self.MAX_SNAPSHOTS :]
+
+        self._report = report
+        return True
+
+    def get_qa_metrics_summary(self) -> dict[str, any]:
+        """Get summary of Plan QA verification metrics.
+
+        Returns:
+            Dict with QA pass rates and issue breakdown.
+        """
+        report = self.load()
+
+        # Filter snapshots that have QA data
+        qa_snapshots = [
+            s
+            for s in report.snapshots
+            if s.qa_issues_found > 0 or s.qa_checks_passed > 0
+        ]
+
+        if not qa_snapshots:
+            return {
+                "total_verifications": 0,
+                "pass_rate": 0.0,
+                "average_issues": 0.0,
+                "issue_breakdown": {
+                    "missing_tests": 0,
+                    "missing_docs": 0,
+                    "potential_duplicates": 0,
+                    "architecture_warnings": 0,
+                },
+                "average_verification_time_ms": 0.0,
+            }
+
+        total = len(qa_snapshots)
+        passed = sum(1 for s in qa_snapshots if s.qa_issues_found == 0)
+
+        return {
+            "total_verifications": total,
+            "pass_rate": passed / total if total > 0 else 0.0,
+            "average_issues": sum(s.qa_issues_found for s in qa_snapshots) / total,
+            "issue_breakdown": {
+                "missing_tests": sum(s.qa_missing_tests for s in qa_snapshots),
+                "missing_docs": sum(s.qa_missing_docs for s in qa_snapshots),
+                "potential_duplicates": sum(
+                    s.qa_potential_duplicates for s in qa_snapshots
+                ),
+                "architecture_warnings": sum(
+                    s.qa_architecture_warnings for s in qa_snapshots
+                ),
+            },
+            "average_verification_time_ms": sum(
+                s.qa_verification_time_ms for s in qa_snapshots
+            )
+            / total,
         }
 
     def get_git_context(self) -> tuple[str | None, str | None]:
