@@ -3,7 +3,8 @@
 This module provides a multi-level ignore system that loads patterns from:
 1. Universal defaults (UNIVERSAL_EXCLUDES - binaries, OS artifacts, etc.)
 2. Global .claudeignore (~/.claude-indexer/.claudeignore)
-3. Project .claudeignore (.claudeignore in project root)
+3. Project .gitignore (standard git ignore patterns)
+4. Project .claudeignore (.claudeignore in project root - can override .gitignore)
 
 Later patterns can negate earlier ones using gitignore's ! syntax.
 
@@ -15,6 +16,9 @@ Example usage:
 
     reason = manager.get_ignore_reason("node_modules/foo.js")
     # Returns: "Matched pattern: node_modules/"
+
+    # To disable .gitignore reading:
+    manager = HierarchicalIgnoreManager(project_root, use_gitignore=False).load()
 """
 
 import logging
@@ -71,27 +75,33 @@ class HierarchicalIgnoreManager:
     Precedence (patterns loaded in order):
     1. Universal defaults (UNIVERSAL_EXCLUDES)
     2. Global patterns (~/.claude-indexer/.claudeignore)
-    3. Project patterns (.claudeignore in project root)
+    3. Project .gitignore patterns (standard git ignores)
+    4. Project patterns (.claudeignore in project root)
 
     Later patterns can negate earlier ones with !
 
     Attributes:
         project_root: The project root directory.
         global_ignore_path: Path to global .claudeignore.
+        gitignore_path: Path to project .gitignore.
         project_ignore_path: Path to project .claudeignore.
+        use_gitignore: Whether to respect .gitignore patterns.
     """
 
     GLOBAL_IGNORE = Path.home() / ".claude-indexer" / ".claudeignore"
 
-    def __init__(self, project_root: Path | str):
+    def __init__(self, project_root: Path | str, use_gitignore: bool = True):
         """Initialize the hierarchical ignore manager.
 
         Args:
             project_root: Path to the project root directory.
+            use_gitignore: Whether to load and respect .gitignore patterns.
         """
         self.project_root = Path(project_root).resolve()
         self.global_ignore_path = self.GLOBAL_IGNORE
+        self.gitignore_path = self.project_root / ".gitignore"
         self.project_ignore_path = self.project_root / ".claudeignore"
+        self.use_gitignore = use_gitignore
 
         self._parser = ClaudeIgnoreParser(self.project_root)
         self._loaded = False
@@ -103,7 +113,8 @@ class HierarchicalIgnoreManager:
         Patterns are loaded in order:
         1. Universal defaults
         2. Global .claudeignore (if exists)
-        3. Project .claudeignore (if exists)
+        3. Project .gitignore (if exists and use_gitignore=True)
+        4. Project .claudeignore (if exists - can override .gitignore with !)
 
         Returns:
             Self for method chaining.
@@ -126,7 +137,19 @@ class HierarchicalIgnoreManager:
             self._sources["global"] = 0
             logger.debug("No global .claudeignore found")
 
-        # Layer 3: Project .claudeignore
+        # Layer 3: Project .gitignore (respects use_gitignore setting)
+        if self.use_gitignore and self.gitignore_path.exists():
+            gitignore_count = self._parser.load_file(self.gitignore_path)
+            self._sources["gitignore"] = gitignore_count
+            logger.debug(f"Loaded {gitignore_count} patterns from .gitignore")
+        else:
+            self._sources["gitignore"] = 0
+            if not self.use_gitignore:
+                logger.debug(".gitignore loading disabled via use_gitignore=False")
+            else:
+                logger.debug("No .gitignore found")
+
+        # Layer 4: Project .claudeignore (can override .gitignore with ! patterns)
         if self.project_ignore_path.exists():
             project_count = self._parser.load_file(self.project_ignore_path)
             self._sources["project"] = project_count
@@ -170,6 +193,30 @@ class HierarchicalIgnoreManager:
             return f"Matched pattern '{pattern}' from {source}"
         return None
 
+    def _pattern_in_file(self, pattern: str, file_path: Path) -> bool:
+        """Check if a pattern exists in a file using line-by-line comparison.
+
+        Args:
+            pattern: The pattern to search for.
+            file_path: Path to the file to search.
+
+        Returns:
+            True if the exact pattern line exists in the file.
+        """
+        try:
+            with open(file_path, encoding="utf-8", errors="replace") as f:
+                for line in f:
+                    # Strip whitespace and skip comments
+                    stripped = line.strip()
+                    if stripped.startswith("#") or not stripped:
+                        continue
+                    # Exact match (not substring)
+                    if stripped == pattern:
+                        return True
+        except (OSError, UnicodeDecodeError):
+            pass
+        return False
+
     def _get_pattern_source(self, pattern: str) -> str:
         """Determine which source a pattern came from.
 
@@ -177,22 +224,28 @@ class HierarchicalIgnoreManager:
             pattern: The pattern to find the source for.
 
         Returns:
-            A string describing the source (universal, global, or project).
+            A string describing the source (universal, global, gitignore, or project).
         """
         if pattern in UNIVERSAL_EXCLUDES:
             return "universal defaults"
 
         # Check global file
         if self.global_ignore_path.exists():
-            try:
-                with open(self.global_ignore_path) as f:
-                    if pattern in f.read():
-                        return f"global ({self.global_ignore_path})"
-            except OSError:
-                pass
+            if self._pattern_in_file(pattern, self.global_ignore_path):
+                return f"global ({self.global_ignore_path})"
 
-        # Must be from project
-        return f"project ({self.project_ignore_path})"
+        # Check .gitignore file
+        if self.use_gitignore and self.gitignore_path.exists():
+            if self._pattern_in_file(pattern, self.gitignore_path):
+                return f"gitignore ({self.gitignore_path})"
+
+        # Check project .claudeignore
+        if self.project_ignore_path.exists():
+            if self._pattern_in_file(pattern, self.project_ignore_path):
+                return f"project ({self.project_ignore_path})"
+
+        # Fallback - pattern source unknown (might be added programmatically)
+        return "unknown"
 
     def get_stats(self) -> dict[str, int | bool | str]:
         """Get statistics about loaded patterns.
@@ -207,9 +260,12 @@ class HierarchicalIgnoreManager:
             "total_patterns": self._parser.pattern_count,
             "universal_patterns": self._sources.get("universal", 0),
             "global_patterns": self._sources.get("global", 0),
+            "gitignore_patterns": self._sources.get("gitignore", 0),
             "project_patterns": self._sources.get("project", 0),
             "global_ignore_exists": self.global_ignore_path.exists(),
+            "gitignore_exists": self.gitignore_path.exists(),
             "project_ignore_exists": self.project_ignore_path.exists(),
+            "use_gitignore": self.use_gitignore,
             "project_root": str(self.project_root),
         }
 

@@ -151,6 +151,11 @@ class AsyncDebouncer:
 class FileChangeCoalescer:
     """Simple file change coalescer with background timer for automatic processing."""
 
+    # Maximum pending entries before forced cleanup
+    MAX_PENDING_SIZE = 5000
+    # Interval for automatic old entry cleanup (seconds)
+    CLEANUP_INTERVAL = 60.0
+
     def __init__(
         self, delay: float = 2.0, callback: Callable[[list[str]], None] | None = None
     ):
@@ -161,6 +166,7 @@ class FileChangeCoalescer:
         self._lock = threading.Lock()
         self._timer_thread: threading.Thread | None = None
         self._stop_event = threading.Event()
+        self._last_cleanup_time = time.time()
         self._start_timer()
 
     def _start_timer(self) -> None:
@@ -173,13 +179,18 @@ class FileChangeCoalescer:
             self._timer_thread.start()
 
     def _timer_loop(self) -> None:
-        """Background timer that periodically checks for ready files."""
-        import time
-
+        """Background timer that periodically checks for ready files and cleans up old entries."""
         while not self._stop_event.is_set():
             try:
                 time.sleep(self.delay)
                 self._check_and_process_ready_files()
+
+                # Periodic cleanup of old entries (every CLEANUP_INTERVAL seconds)
+                current_time = time.time()
+                if current_time - self._last_cleanup_time >= self.CLEANUP_INTERVAL:
+                    self.cleanup_old_entries()
+                    self._last_cleanup_time = current_time
+
             except Exception as e:
                 print(f"❌ Timer error: {e}")
 
@@ -212,13 +223,19 @@ class FileChangeCoalescer:
                 print(f"❌ Error in coalescer callback: {e}")
 
     def add_change(self, file_path: str) -> None:
-        """Add a file change."""
-        import time
-
+        """Add a file change with automatic size-based cleanup."""
         current_time = time.time()
 
         with self._lock:
             self._pending[file_path] = current_time
+
+            # Immediate cleanup if pending dict grows too large
+            if len(self._pending) > self.MAX_PENDING_SIZE:
+                # Remove oldest entries (keep most recent half)
+                sorted_entries = sorted(
+                    self._pending.items(), key=lambda x: x[1], reverse=True
+                )
+                self._pending = dict(sorted_entries[: self.MAX_PENDING_SIZE // 2])
 
     def has_pending_files(self) -> bool:
         """Check if there are pending files."""

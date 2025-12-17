@@ -315,6 +315,113 @@ class TestHierarchicalIgnoreManager:
         assert stats_before == stats_after
         assert stats_after["project_patterns"] == 1
 
+    def test_gitignore_patterns_loaded(self, temp_project):
+        """Test that .gitignore patterns are loaded by default."""
+        from claude_indexer.utils.hierarchical_ignore import HierarchicalIgnoreManager
+
+        # Create .gitignore
+        gitignore = temp_project / ".gitignore"
+        gitignore.write_text("*.gitignored\ngitignore_dir/\nbuild/\n")
+
+        manager = HierarchicalIgnoreManager(temp_project).load()
+        stats = manager.get_stats()
+
+        assert stats["gitignore_patterns"] == 3
+        assert stats["gitignore_exists"] is True
+        assert stats["use_gitignore"] is True
+
+    def test_gitignore_patterns_respected(self, temp_project):
+        """Test that .gitignore patterns are actually used for filtering."""
+        from claude_indexer.utils.hierarchical_ignore import HierarchicalIgnoreManager
+
+        # Create .gitignore
+        gitignore = temp_project / ".gitignore"
+        gitignore.write_text("*.gitignored\ngitignore_dir/\n")
+
+        manager = HierarchicalIgnoreManager(temp_project).load()
+
+        assert manager.should_ignore("file.gitignored")
+        assert manager.should_ignore("gitignore_dir/file.txt")
+        assert not manager.should_ignore("file.txt")
+
+    def test_gitignore_and_claudeignore_combined(self, temp_project):
+        """Test that both .gitignore and .claudeignore patterns are respected."""
+        from claude_indexer.utils.hierarchical_ignore import HierarchicalIgnoreManager
+
+        # Create .gitignore
+        gitignore = temp_project / ".gitignore"
+        gitignore.write_text("*.gitignored\n")
+
+        # Create .claudeignore
+        claudeignore = temp_project / ".claudeignore"
+        claudeignore.write_text("*.claudeignored\n")
+
+        manager = HierarchicalIgnoreManager(temp_project).load()
+        stats = manager.get_stats()
+
+        # Both files should be loaded
+        assert stats["gitignore_patterns"] == 1
+        assert stats["project_patterns"] == 1
+
+        # Both patterns should be respected
+        assert manager.should_ignore("file.gitignored")
+        assert manager.should_ignore("file.claudeignored")
+        assert not manager.should_ignore("file.txt")
+
+    def test_claudeignore_can_override_gitignore(self, temp_project):
+        """Test that .claudeignore can negate .gitignore patterns with !"""
+        from claude_indexer.utils.hierarchical_ignore import HierarchicalIgnoreManager
+
+        # Create .gitignore that ignores all .log files
+        gitignore = temp_project / ".gitignore"
+        gitignore.write_text("*.log\n")
+
+        # Create .claudeignore that un-ignores important.log
+        claudeignore = temp_project / ".claudeignore"
+        claudeignore.write_text("!important.log\n")
+
+        manager = HierarchicalIgnoreManager(temp_project).load()
+
+        # Regular .log files should be ignored (from .gitignore)
+        assert manager.should_ignore("debug.log")
+        assert manager.should_ignore("error.log")
+
+        # important.log should NOT be ignored (negated by .claudeignore)
+        assert not manager.should_ignore("important.log")
+
+    def test_use_gitignore_false_skips_gitignore(self, temp_project):
+        """Test that use_gitignore=False disables .gitignore loading."""
+        from claude_indexer.utils.hierarchical_ignore import HierarchicalIgnoreManager
+
+        # Create .gitignore
+        gitignore = temp_project / ".gitignore"
+        gitignore.write_text("*.gitignored\n")
+
+        manager = HierarchicalIgnoreManager(temp_project, use_gitignore=False).load()
+        stats = manager.get_stats()
+
+        # .gitignore should not be loaded
+        assert stats["gitignore_patterns"] == 0
+        assert stats["use_gitignore"] is False
+
+        # Pattern from .gitignore should not be applied
+        # (file is NOT ignored because .gitignore was not loaded)
+        assert not manager.should_ignore("file.gitignored")
+
+    def test_gitignore_source_attribution(self, temp_project):
+        """Test that patterns from .gitignore are correctly attributed."""
+        from claude_indexer.utils.hierarchical_ignore import HierarchicalIgnoreManager
+
+        # Create .gitignore with a unique pattern
+        gitignore = temp_project / ".gitignore"
+        gitignore.write_text("unique_gitignore_pattern.txt\n")
+
+        manager = HierarchicalIgnoreManager(temp_project).load()
+
+        reason = manager.get_ignore_reason("unique_gitignore_pattern.txt")
+        assert reason is not None
+        assert "gitignore" in reason.lower()
+
 
 class TestCreateDefaultClaudeignore:
     """Test the create_default_claudeignore function."""

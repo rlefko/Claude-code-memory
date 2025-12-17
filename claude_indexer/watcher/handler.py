@@ -1,7 +1,9 @@
 """File system event handler for automatic indexing."""
 
 import asyncio
+import threading
 import time
+from collections import OrderedDict
 from pathlib import Path
 from typing import Any
 
@@ -71,30 +73,83 @@ class IndexingEventHandler(FileSystemEventHandler):
         self.coalescer = FileChangeCoalescer(
             delay=debounce_seconds, callback=self._process_batch_from_coalescer
         )
-        self.processed_files: set[str] = set()
+        # Thread-safe processed files tracking using OrderedDict for proper LRU eviction
+        self._processed_files_lock = threading.Lock()
+        self._processed_files: OrderedDict[str, float] = (
+            OrderedDict()
+        )  # path -> timestamp
+        self._max_processed_files = 10000  # Threshold for cleanup
 
         # Stats
         self.events_received = 0
         self.events_processed = 0
         self.events_ignored = 0
 
+    # Thread-safe processed files operations
+    def _add_processed_file(self, path: str) -> None:
+        """Thread-safe add to processed files with LRU cleanup."""
+        with self._processed_files_lock:
+            self._processed_files[path] = time.time()
+            # Move to end for LRU ordering
+            self._processed_files.move_to_end(path)
+            # Auto-cleanup if over threshold
+            if len(self._processed_files) > self._max_processed_files:
+                self._cleanup_processed_files_unlocked()
+
+    def _discard_processed_file(self, path: str) -> None:
+        """Thread-safe removal from processed files."""
+        with self._processed_files_lock:
+            self._processed_files.pop(path, None)
+
+    def _get_processed_files_count(self) -> int:
+        """Thread-safe count of processed files."""
+        with self._processed_files_lock:
+            return len(self._processed_files)
+
+    def _cleanup_processed_files_unlocked(self) -> None:
+        """Remove oldest 50% of entries. Must be called with lock held."""
+        # Remove oldest half (first items in OrderedDict are oldest)
+        to_remove = len(self._processed_files) // 2
+        for _ in range(to_remove):
+            self._processed_files.popitem(last=False)
+
+    def _validate_event(self, event: Any) -> bool:
+        """Validate that an event has required attributes."""
+        if event is None:
+            return False
+        if not hasattr(event, "is_directory"):
+            return False
+        if not hasattr(event, "src_path"):
+            return False
+        return True
+
     def on_modified(self, event: Any) -> None:
         """Handle file modification events."""
-        if not event.is_directory:
+        if not self._validate_event(event):
+            return
+        if not event.is_directory and event.src_path:
             self._handle_file_event(event.src_path, "modified")
 
     def on_created(self, event: Any) -> None:
         """Handle file creation events."""
-        if not event.is_directory:
+        if not self._validate_event(event):
+            return
+        if not event.is_directory and event.src_path:
             self._handle_file_event(event.src_path, "created")
 
     def on_deleted(self, event: Any) -> None:
         """Handle file deletion events."""
-        if not event.is_directory:
+        if not self._validate_event(event):
+            return
+        if not event.is_directory and event.src_path:
             self._handle_file_event(event.src_path, "deleted")
 
     def on_moved(self, event: Any) -> None:
         """Handle file move events."""
+        if not self._validate_event(event):
+            return
+        if not hasattr(event, "dest_path") or not event.dest_path:
+            return
         if not event.is_directory:
             # Treat as delete + create
             self._handle_file_event(event.src_path, "deleted")
@@ -168,82 +223,88 @@ class IndexingEventHandler(FileSystemEventHandler):
             )
 
             if success:
-                self.processed_files.add(str(path))
+                self._add_processed_file(str(path))
 
         except Exception as e:
             logger.error(f"❌ Error processing file change {path}: {e}")
 
     def _process_file_batch(self, paths: list[Path]):
-        """Process a batch of file changes with phantom deletion detection."""
+        """Process a batch of file changes with atomic state capture.
+
+        Uses a single atomic state snapshot to avoid TOCTOU race conditions.
+        Files are classified once and any subsequent state changes are handled
+        gracefully by the processing functions.
+        """
         try:
             if not paths:
                 return
 
-            # Separate existing files from potential deletions
-            existing_files = []
-            potential_deletions = []
-
-            for path in paths:
-                if path.exists():
-                    existing_files.append(path)
-                else:
-                    # It might be a temporary deletion (atomic save), so check again
-                    potential_deletions.append(path)
-
-            # Re-check potential deletions after a short delay to handle atomic saves
-            if potential_deletions:
-                time.sleep(self.debounce_seconds)  # Use configured debounce delay
-
-                real_deletions = []
-                for path in potential_deletions:
-                    if path.exists():
-                        # File reappeared, so it was a modification
-                        existing_files.append(path)
-                    else:
-                        # File is still gone, so it's a real deletion
-                        real_deletions.append(path)
-            else:
-                real_deletions = []
-
             logger = get_logger()
 
-            # Process existing files (includes phantom deletions treated as modifications)
-            if existing_files:
-                # Use a set to handle duplicates if a file was in both lists
-                unique_existing_paths = sorted(
-                    set(existing_files), key=lambda p: str(p)
-                )
+            # Take a single atomic snapshot of file states using lstat (doesn't follow symlinks)
+            # This reduces the TOCTOU window to a single point in time
+            file_states: dict[Path, bool] = {}
+            for path in paths:
+                try:
+                    # Use lstat to avoid issues with symlinks
+                    path.lstat()
+                    file_states[path] = True  # File exists
+                except (FileNotFoundError, OSError):
+                    file_states[path] = False  # File doesn't exist
 
+            existing_files = [p for p, exists in file_states.items() if exists]
+            missing_files = [p for p, exists in file_states.items() if not exists]
+
+            # For missing files, wait briefly and re-check once for atomic save operations
+            # Use a shorter delay (100ms) to minimize race window
+            confirmed_deletions = []
+            if missing_files:
+                time.sleep(0.1)  # Brief delay for atomic saves to complete
+                for path in missing_files:
+                    try:
+                        path.lstat()
+                        # File reappeared - atomic save completed, treat as modification
+                        existing_files.append(path)
+                    except (FileNotFoundError, OSError):
+                        # File is still gone - confirmed deletion
+                        confirmed_deletions.append(path)
+
+            # Process existing files
+            if existing_files:
+                unique_existing_paths = sorted(set(existing_files), key=lambda p: str(p))
                 relative_paths = [
                     p.relative_to(self.project_path) for p in unique_existing_paths
                 ]
                 logger.info(
-                    f"🔄 Auto-indexing batch ({len(unique_existing_paths)} files): {', '.join(str(rp) for rp in relative_paths)}"
+                    f"🔄 Auto-indexing batch ({len(unique_existing_paths)} files): "
+                    f"{', '.join(str(rp) for rp in relative_paths)}"
                 )
 
                 from ..main import run_indexing_with_specific_files
 
+                # The indexing function handles FileNotFoundError gracefully if file
+                # disappears between our check and actual processing
                 success = run_indexing_with_specific_files(
                     str(self.project_path),
                     self.collection_name,
                     unique_existing_paths,
-                    quiet=False,  # Always show summary output, even in non-verbose mode
+                    quiet=False,
                     verbose=self.verbose,
-                    skip_change_detection=True,  # Bypass expensive hash checking for watcher
+                    skip_change_detection=True,
                 )
 
                 if success:
                     for path in unique_existing_paths:
-                        self.processed_files.add(str(path))
+                        self._add_processed_file(str(path))
                 else:
                     logger.error(
                         f"❌ Batch indexing failed for {len(unique_existing_paths)} files"
                     )
 
-            # Process real deletions
-            if real_deletions:
-                for path in real_deletions:
-                    self._process_file_deletion(path)
+            # Process confirmed deletions
+            # The deletion handler also verifies file state before proceeding
+            for path in confirmed_deletions:
+                self._process_file_deletion(path)
 
         except Exception as e:
             logger = get_logger()
@@ -298,7 +359,7 @@ class IndexingEventHandler(FileSystemEventHandler):
             logger.info(f"🗑️  File deleted: {relative_path}")
 
             # Remove from processed files
-            self.processed_files.discard(str(path))
+            self._discard_processed_file(str(path))
 
             # Use shared deletion function that calls the same core logic as incremental
             from ..main import run_indexing_with_shared_deletion
@@ -329,7 +390,7 @@ class IndexingEventHandler(FileSystemEventHandler):
             "events_received": self.events_received,
             "events_processed": self.events_processed,
             "events_ignored": self.events_ignored,
-            "processed_files": len(self.processed_files),
+            "processed_files": self._get_processed_files_count(),
             "debounce_seconds": self.debounce_seconds,
             "coalescer_stats": (
                 self.coalescer.get_stats()
@@ -354,10 +415,7 @@ class IndexingEventHandler(FileSystemEventHandler):
         # Clean up old coalescer entries
         self.coalescer.cleanup_old_entries()
 
-        # Clean up processed files set if it gets too large
-        if len(self.processed_files) > 10000:
-            # Keep only the most recent 5000
-            self.processed_files = set(list(self.processed_files)[-5000:])
+        # Processed files cleanup is now automatic via LRU in _add_processed_file()
 
 
 class Watcher:

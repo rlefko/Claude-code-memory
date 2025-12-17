@@ -2,6 +2,7 @@
 
 import contextlib
 import hashlib
+import heapq
 import json
 import struct
 import time
@@ -204,23 +205,28 @@ class PersistentEmbeddingCache:
             return list(embedding)
 
     def _maybe_evict(self) -> None:
-        """Evict oldest entries if cache exceeds size limit."""
+        """Evict oldest entries if cache exceeds size limit.
+
+        Uses heapq.nsmallest() for O(n) complexity instead of O(n log n) full sort.
+        """
         current_size = self._get_cache_size()
 
         if current_size < self.max_size_bytes:
             return
 
-        # Sort by last access time (oldest first)
-        sorted_entries = sorted(
-            self._index.items(), key=lambda x: x[1].get("last_access", 0)
-        )
-
-        # Remove oldest 25% of entries
-        entries_to_remove = len(sorted_entries) // 4
+        # Calculate how many entries to remove (oldest 25%)
+        entries_to_remove = len(self._index) // 4
         entries_to_remove = max(entries_to_remove, 1)
 
+        # Use heapq.nsmallest for O(n) instead of O(n log n) full sort
+        oldest_entries = heapq.nsmallest(
+            entries_to_remove,
+            self._index.items(),
+            key=lambda x: x[1].get("last_access", 0),
+        )
+
         removed_size = 0
-        for content_hash, _entry in sorted_entries[:entries_to_remove]:
+        for content_hash, _entry in oldest_entries:
             embedding_file = self.embeddings_dir / f"{content_hash}.bin"
             try:
                 if embedding_file.exists():
