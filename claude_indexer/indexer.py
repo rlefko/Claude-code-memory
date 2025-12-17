@@ -167,16 +167,19 @@ class CoreIndexer:
                 f"🚀 Parallel processing enabled with {self.parallel_processor.current_workers} workers"
             )
 
-        # Initialize hierarchical ignore manager for .claudeignore support
+        # Initialize hierarchical ignore manager for .claudeignore and .gitignore support
         self.ignore_manager = None
         if HIERARCHICAL_IGNORE_AVAILABLE:
             try:
-                self.ignore_manager = HierarchicalIgnoreManager(project_path).load()
+                self.ignore_manager = HierarchicalIgnoreManager(
+                    project_path, use_gitignore=self.config.use_gitignore
+                ).load()
                 stats = self.ignore_manager.get_stats()
                 self.logger.debug(
                     f"Hierarchical ignore loaded: {stats['total_patterns']} patterns "
                     f"(universal: {stats['universal_patterns']}, "
                     f"global: {stats['global_patterns']}, "
+                    f"gitignore: {stats['gitignore_patterns']}, "
                     f"project: {stats['project_patterns']})"
                 )
             except Exception as e:
@@ -752,12 +755,20 @@ class CoreIndexer:
 
                 # Handle deleted files using consolidated function
                 if deleted_files:
-                    self._handle_deleted_files(collection_name, deleted_files, verbose)
-                    # State cleanup happens automatically in _update_state when no files_to_process
+                    successfully_deleted, failed_deletions = self._handle_deleted_files(
+                        collection_name, deleted_files, verbose
+                    )
+                    # Only mark successfully deleted files in state
+                    # Failed deletions will be retried on next run
+                    deleted_files = successfully_deleted
                     if result.warnings is not None:
                         result.warnings.append(
-                            f"Handled {len(deleted_files)} deleted files"
+                            f"Handled {len(successfully_deleted)} deleted files"
                         )
+                        if failed_deletions:
+                            result.warnings.append(
+                                f"Failed to delete {len(failed_deletions)} files (will retry)"
+                            )
             else:
                 files_to_process = self._find_all_files(include_tests)
                 deleted_files = []
@@ -1433,12 +1444,18 @@ class CoreIndexer:
 
             # Step 2: Handle deletions (remove from index)
             if change_set.deleted_files:
-                self._handle_deleted_files(
+                successfully_deleted, failed_deletions = self._handle_deleted_files(
                     collection_name, change_set.deleted_files, verbose
                 )
                 if verbose:
                     self.logger.info(
-                        f"🗑️ Removed entities for {len(change_set.deleted_files)} deleted files"
+                        f"🗑️ Removed entities for {len(successfully_deleted)} deleted files"
+                    )
+                if failed_deletions:
+                    if result.warnings is None:
+                        result.warnings = []
+                    result.warnings.append(
+                        f"Failed to delete {len(failed_deletions)} files"
                     )
 
             # Step 3: Index new and modified files
@@ -2245,6 +2262,11 @@ class CoreIndexer:
                 self.logger.warning(
                     f"⚠️ Parallel processing failed, falling back to sequential: {e}"
                 )
+                # Explicit cleanup to ensure no zombie processes remain
+                try:
+                    self.parallel_processor.shutdown(wait=False)
+                except Exception as cleanup_err:
+                    self.logger.debug(f"Cleanup warning: {cleanup_err}")
                 # Fall through to sequential processing
 
         # Only log batch info in verbose mode
@@ -2830,14 +2852,22 @@ class CoreIndexer:
         collection_name: str,
         deleted_files: str | list[str],
         verbose: bool = False,
-    ):
-        """Handle deleted files by removing their entities and orphaned relations."""
+    ) -> tuple[list[str], list[str]]:
+        """Handle deleted files by removing their entities and orphaned relations.
+
+        Returns:
+            Tuple of (successfully_deleted_files, failed_files) so callers
+            can update state only for successful deletions.
+        """
         # Convert single path to list for unified handling
         if isinstance(deleted_files, str):
             deleted_files = [deleted_files]
 
         if not deleted_files:
-            return
+            return [], []
+
+        successfully_deleted: list[str] = []
+        failed_deletions: list[str] = []
 
         total_entities_deleted = 0
 
@@ -2882,7 +2912,8 @@ class CoreIndexer:
 
                 except Exception as e:
                     logger.error(f"   ❌ Error finding entities: {e}")
-                    point_ids = []
+                    failed_deletions.append(deleted_file)
+                    continue  # Skip to next file instead of silently continuing
 
                 # Remove duplicates and delete all found points
                 point_ids = list(set(point_ids))
@@ -2903,14 +2934,18 @@ class CoreIndexer:
                     if delete_result.success:
                         entities_deleted = len(point_ids)
                         total_entities_deleted += entities_deleted
+                        successfully_deleted.append(deleted_file)
                         logger.info(
                             f"   ✅ Successfully removed {entities_deleted} entities from {deleted_file}"
                         )
                     else:
+                        failed_deletions.append(deleted_file)
                         logger.error(
                             f"   ❌ Failed to remove entities from {deleted_file}: {delete_result.errors}"
                         )
                 else:
+                    # No entities to delete is still a success (file was already cleaned up)
+                    successfully_deleted.append(deleted_file)
                     logger.warning(
                         f"   ⚠️ No entities found for {deleted_file} - nothing to delete"
                     )
@@ -2947,6 +2982,20 @@ class CoreIndexer:
 
         except Exception as e:
             logger.error(f"Error handling deleted files: {e}")
+            # Mark remaining unprocessed files as failed
+            processed = set(successfully_deleted + failed_deletions)
+            for df in deleted_files:
+                if df not in processed:
+                    failed_deletions.append(df)
+
+        # Log summary if there were any failures
+        if failed_deletions:
+            logger.warning(
+                f"⚠️ {len(failed_deletions)}/{len(deleted_files)} file deletions failed - "
+                f"these files will NOT be removed from state"
+            )
+
+        return successfully_deleted, failed_deletions
 
     def _is_test_file(self, _file_path: Path) -> bool:
         """Check if a file is a test file - DISABLED."""

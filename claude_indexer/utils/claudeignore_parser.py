@@ -40,6 +40,8 @@ class ClaudeIgnoreParser:
         self.project_root = Path(project_root).resolve()
         self._patterns: list[str] = []
         self._spec: pathspec.PathSpec | None = None
+        # Cache individual PathSpec objects for get_matching_pattern()
+        self._individual_specs: dict[str, pathspec.PathSpec] = {}
 
     def load_file(self, ignore_file: Path | str) -> int:
         """Load patterns from a .claudeignore or .gitignore file.
@@ -60,7 +62,7 @@ class ClaudeIgnoreParser:
         count_before = len(self._patterns)
 
         try:
-            with open(ignore_path, encoding="utf-8") as f:
+            with open(ignore_path, encoding="utf-8", errors="replace") as f:
                 for line in f:
                     line = line.rstrip("\n\r")
 
@@ -72,7 +74,7 @@ class ClaudeIgnoreParser:
 
                     self._patterns.append(stripped)
 
-        except OSError as e:
+        except (OSError, UnicodeDecodeError) as e:
             # Log but don't fail - file may be temporarily unavailable
             import logging
 
@@ -97,6 +99,9 @@ class ClaudeIgnoreParser:
 
     def _rebuild_spec(self) -> None:
         """Rebuild the pathspec from current patterns."""
+        # Clear individual spec cache
+        self._individual_specs.clear()
+
         if not self._patterns:
             self._spec = None
             return
@@ -105,6 +110,13 @@ class ClaudeIgnoreParser:
         self._spec = pathspec.PathSpec.from_lines(
             pathspec.patterns.GitWildMatchPattern, self._patterns
         )
+
+        # Pre-build individual specs for get_matching_pattern() O(1) lookup
+        for pattern in self._patterns:
+            if pattern not in self._individual_specs:
+                self._individual_specs[pattern] = pathspec.PathSpec.from_lines(
+                    pathspec.patterns.GitWildMatchPattern, [pattern]
+                )
 
     def matches(self, path: Path | str) -> bool:
         """Check if a path should be ignored.
@@ -148,6 +160,48 @@ class ClaudeIgnoreParser:
                 result.append(Path(path) if not isinstance(path, Path) else path)
         return result
 
+    def _resolve_path_safely(self, path: Path) -> Path | None:
+        """Safely resolve a path, handling symlink loops.
+
+        Args:
+            path: Path to resolve.
+
+        Returns:
+            Resolved path relative to project root, or None if outside project.
+        """
+        try:
+            # Use a visited set to detect symlink loops
+            visited: set[str] = set()
+            current = path
+
+            # Manually resolve to detect cycles (max 40 iterations like kernel)
+            for _ in range(40):
+                str_path = str(current)
+                if str_path in visited:
+                    # Symlink loop detected
+                    import logging
+
+                    logging.getLogger(__name__).warning(
+                        f"Symlink loop detected resolving {path}"
+                    )
+                    return None
+                visited.add(str_path)
+
+                if not current.is_symlink():
+                    break
+                # Read symlink target
+                target = current.resolve()
+                if target == current:
+                    break
+                current = target
+
+            # Final resolve and get relative path
+            resolved = path.resolve()
+            return resolved.relative_to(self.project_root)
+        except (ValueError, OSError):
+            # Path is not under project root or other error
+            return None
+
     def get_matching_pattern(self, path: Path | str) -> str | None:
         """Get the pattern that matches a path (for debugging).
 
@@ -162,19 +216,24 @@ class ClaudeIgnoreParser:
 
         path = Path(path)
         if path.is_absolute():
-            # Resolve to handle symlinks (e.g., /var -> /private/var on macOS)
-            try:
-                path = path.resolve().relative_to(self.project_root)
-            except ValueError:
+            # Resolve safely to handle symlinks and detect loops
+            resolved = self._resolve_path_safely(path)
+            if resolved is None:
                 return None
+            path = resolved
 
         path_str = str(path).replace("\\", "/")
 
-        # Check each pattern individually to find the matching one
+        # Use cached specs for O(1) lookup instead of O(n) recompilation
         for pattern in self._patterns:
-            spec = pathspec.PathSpec.from_lines(
-                pathspec.patterns.GitWildMatchPattern, [pattern]
-            )
+            spec = self._individual_specs.get(pattern)
+            if spec is None:
+                # Fallback for patterns added after cache build
+                spec = pathspec.PathSpec.from_lines(
+                    pathspec.patterns.GitWildMatchPattern, [pattern]
+                )
+                self._individual_specs[pattern] = spec
+
             if spec.match_file(path_str):
                 # For negation patterns, continue checking
                 if pattern.startswith("!"):
@@ -197,3 +256,4 @@ class ClaudeIgnoreParser:
         """Clear all loaded patterns."""
         self._patterns.clear()
         self._spec = None
+        self._individual_specs.clear()

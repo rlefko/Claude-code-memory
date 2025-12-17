@@ -370,11 +370,13 @@ class ParallelFileProcessor:
                     results.append(result)
                     processed += 1
 
-                    # Log progress
-                    if processed % 10 == 0:
+                    # Log progress and trigger periodic GC every 20 files
+                    if processed % 20 == 0:
                         self.logger.debug(
                             f"Processed {processed}/{len(file_paths)} files in parallel"
                         )
+                        # Periodic GC to prevent memory buildup during large batches
+                        gc.collect()
 
                 except Exception as e:
                     self.logger.error(f"Error processing {file_path}: {e}")
@@ -390,6 +392,23 @@ class ParallelFileProcessor:
         gc.collect()
 
         return results
+
+    def shutdown(self, wait: bool = True) -> None:
+        """
+        Explicit shutdown method for cleaning up any lingering resources.
+
+        This is primarily for explicit cleanup in error handling scenarios.
+        The ProcessPoolExecutor context manager handles normal cleanup automatically.
+
+        Args:
+            wait: If True, wait for workers to finish. If False, cancel pending.
+        """
+        # Force garbage collection to clean up any retained references
+        gc.collect()
+
+        self.logger.debug(
+            f"ParallelFileProcessor shutdown (wait={wait}), current workers: {self.current_workers}"
+        )
 
     def get_tier_stats(self, results: list[dict[str, Any]]) -> dict[str, int]:
         """

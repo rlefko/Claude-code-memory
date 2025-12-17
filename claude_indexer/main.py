@@ -438,6 +438,41 @@ def run_indexing_with_specific_files(
                 # No need to capture it again here
                 vectored_changes_for_display = None
 
+            # Validate pre-captured state to ensure it's still current
+            # This prevents stale state if files were modified during processing
+            if pre_captured_states:
+                stale_files = []
+                for file_path_str, state_info in list(pre_captured_states.items()):
+                    try:
+                        current_mtime = Path(file_path_str).stat().st_mtime
+                        captured_mtime = state_info.get("mtime", 0)
+                        if (
+                            abs(current_mtime - captured_mtime) > 0.001
+                        ):  # Allow small float variance
+                            stale_files.append(file_path_str)
+                    except OSError:
+                        # File no longer exists, remove from pre-captured state
+                        stale_files.append(file_path_str)
+
+                if stale_files:
+                    logger.warning(
+                        f"⚠️ {len(stale_files)} files modified during processing, refreshing state"
+                    )
+                    # Refresh stale entries with current state
+                    for file_path_str in stale_files:
+                        try:
+                            file_path = Path(file_path_str)
+                            if file_path.exists():
+                                pre_captured_states[file_path_str] = {
+                                    "mtime": file_path.stat().st_mtime,
+                                    "size": file_path.stat().st_size,
+                                }
+                            else:
+                                # File was deleted during processing
+                                del pre_captured_states[file_path_str]
+                        except OSError:
+                            del pre_captured_states[file_path_str]
+
             # Use incremental update to merge with existing state
             indexer._update_state(
                 successfully_processed,

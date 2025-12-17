@@ -599,12 +599,18 @@ class QdrantStore(ManagedVectorStore, ContentHashMixin):
             logger.warning(f"   Collision rate: {collision_percentage:.1f}%")
 
             # Log specific colliding IDs and their details
-            from collections import Counter
+            from collections import Counter, defaultdict
 
             id_counts = Counter(point_ids)
             colliding_ids = {
                 id_val: count for id_val, count in id_counts.items() if count > 1
             }
+
+            # Build dict for O(1) lookup instead of O(n²) list comprehension
+            points_by_id: dict[str, list] = defaultdict(list)
+            for point in qdrant_points:
+                if point.id in colliding_ids:
+                    points_by_id[point.id].append(point)
 
             logger.warning(f"   Colliding chunk IDs ({len(colliding_ids)} unique IDs):")
             for chunk_id, count in sorted(
@@ -612,8 +618,8 @@ class QdrantStore(ManagedVectorStore, ContentHashMixin):
             ):
                 logger.warning(f"     • {chunk_id}: {count} duplicates")
 
-                # Show entity details for this colliding ID
-                colliding_points = [p for p in qdrant_points if p.id == chunk_id]
+                # Show entity details for this colliding ID (O(1) lookup)
+                colliding_points = points_by_id[chunk_id]
                 for _i, point in enumerate(
                     colliding_points[:3]
                 ):  # Limit to first 3 examples
@@ -642,10 +648,11 @@ class QdrantStore(ManagedVectorStore, ContentHashMixin):
                     f"✅ After deduplication: {len(qdrant_points)} unique points in {len(batches)} batches"
                 )
 
-        # Process each batch with retry logic
+        # Process each batch with retry logic and rollback on failure
         total_processed = 0
         total_failed = 0
         all_errors = []
+        committed_point_ids: list[str] = []  # Track committed IDs for rollback
 
         for i, batch in enumerate(batches):
             if len(batches) > 1:
@@ -659,6 +666,8 @@ class QdrantStore(ManagedVectorStore, ContentHashMixin):
 
             if batch_result.success:
                 total_processed += batch_result.items_processed
+                # Track committed point IDs for potential rollback
+                committed_point_ids.extend([p.id for p in batch])
                 if len(batches) > 1:
                     logger.debug(
                         f"✅ Batch {i + 1} succeeded: {batch_result.items_processed} points"
@@ -670,9 +679,41 @@ class QdrantStore(ManagedVectorStore, ContentHashMixin):
                             f"⚠️ Batch {i + 1} discrepancy: {batch_discrepancy} points missing"
                         )
             else:
+                # Batch failed - attempt rollback of previously committed batches
                 total_failed += len(batch)
                 all_errors.extend(batch_result.errors)
                 logger.error(f"❌ Batch {i + 1} failed: {batch_result.errors}")
+
+                if committed_point_ids:
+                    logger.warning(
+                        f"🔄 Rolling back {len(committed_point_ids)} previously committed points..."
+                    )
+                    rollback_success = self._rollback_committed_points(
+                        collection_name, committed_point_ids
+                    )
+                    if rollback_success:
+                        logger.info(
+                            f"✅ Rollback successful - removed {len(committed_point_ids)} points"
+                        )
+                        all_errors.append(
+                            f"Rolled back {len(committed_point_ids)} committed points due to batch {i + 1} failure"
+                        )
+                    else:
+                        logger.error(
+                            "❌ Rollback failed - database may be in inconsistent state"
+                        )
+                        all_errors.append(
+                            f"CRITICAL: Rollback failed for {len(committed_point_ids)} points"
+                        )
+
+                # Stop processing remaining batches
+                remaining_points = sum(len(b) for b in batches[i + 1 :])
+                if remaining_points > 0:
+                    total_failed += remaining_points
+                    all_errors.append(
+                        f"Skipped {remaining_points} points in {len(batches) - i - 1} remaining batches"
+                    )
+                break
 
         # Verify storage count
         verification_result = self._verify_storage_count(
@@ -705,6 +746,37 @@ class QdrantStore(ManagedVectorStore, ContentHashMixin):
             batch = points[i : i + batch_size]
             batches.append(batch)
         return batches
+
+    def _rollback_committed_points(
+        self, collection_name: str, point_ids: list[str]
+    ) -> bool:
+        """Rollback previously committed points by deleting them.
+
+        Args:
+            collection_name: Name of the collection
+            point_ids: List of point IDs to delete
+
+        Returns:
+            True if rollback succeeded, False otherwise
+        """
+        try:
+            # Delete in batches to avoid overwhelming the server
+            batch_size = 1000
+            for i in range(0, len(point_ids), batch_size):
+                batch = point_ids[i : i + batch_size]
+                with warnings.catch_warnings():
+                    warnings.filterwarnings(
+                        "ignore", message="Api key is used with an insecure connection"
+                    )
+                    self.client.delete(
+                        collection_name=collection_name,
+                        points_selector=batch,
+                        wait=True,
+                    )
+            return True
+        except Exception as e:
+            logger.error(f"❌ Rollback failed: {e}")
+            return False
 
     def _upsert_batch_with_retry(
         self,
