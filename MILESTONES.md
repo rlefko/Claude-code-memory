@@ -2022,6 +2022,144 @@ export const INPUT_LIMITS = {
 
 ---
 
+## Phase 18: MCP Server Resilience & Resource Management
+
+**Objective:** Complete remaining P1/P2 items from the MCP server PRD (sections 4.5 and 4.6).
+
+**Status:** Complete ✅
+
+### Milestone 18.1: Graceful Shutdown
+
+**Objective:** Handle process termination signals properly.
+
+#### Tasks
+
+| ID | Task | Priority | Status |
+|----|------|----------|--------|
+| 18.1.1 | Create `src/shutdown.ts` with signal handler infrastructure | HIGH | DONE |
+| 18.1.2 | Implement SIGTERM handler with 10-second grace period | HIGH | DONE |
+| 18.1.3 | Implement SIGINT handler (same logic as SIGTERM) | HIGH | DONE |
+| 18.1.4 | Add cleanup actions: cancel pending requests, flush logs | HIGH | DONE |
+| 18.1.5 | Integrate shutdown manager into `src/index.ts` | HIGH | DONE |
+| 18.1.6 | Create `src/__tests__/shutdown.test.ts` with tests | HIGH | DONE |
+
+**Implementation Details:**
+- Created `ShutdownManager` class with:
+  - Signal handler registration (SIGTERM/SIGINT)
+  - Cleanup callback registration and execution
+  - Pending request tracking via AbortController
+  - Configurable grace period (default 10s)
+  - Global singleton access via `getShutdownManager()`
+- 21 tests covering all shutdown functionality
+
+**Success Criteria:**
+- [x] Graceful shutdown handles SIGTERM/SIGINT properly
+- [x] Cleanup callbacks executed in order
+- [x] Pending requests cancelled on shutdown
+
+---
+
+### Milestone 18.2: External API Timeouts
+
+**Objective:** Add configurable timeouts for HTTP calls to external APIs.
+
+#### Tasks
+
+| ID | Task | Priority | Status |
+|----|------|----------|--------|
+| 18.2.1 | Create `src/http-client.ts` with `fetchWithTimeout()` utility | HIGH | DONE |
+| 18.2.2 | Update Voyage AI embedding calls (30s timeout) | HIGH | DONE |
+| 18.2.3 | Update Linear API calls (10s timeout) | HIGH | DONE |
+| 18.2.4 | Update GitHub API calls (10s timeout) | HIGH | DONE |
+| 18.2.5 | Create `src/__tests__/http-client.test.ts` with tests | HIGH | DONE |
+
+**Implementation Details:**
+- Created `fetchWithTimeout()` utility with:
+  - AbortController-based timeout mechanism
+  - TimeoutError and ShutdownAbortError classes
+  - Integration with ShutdownManager for request tracking
+  - DEFAULT_TIMEOUTS constants for each API
+  - Environment variable support for custom timeouts
+- Updated all external API calls in qdrant.ts:
+  - Voyage AI: 30s timeout
+  - Linear API: 10s timeout (2 call sites)
+  - GitHub API: 10s timeout (4 call sites)
+- 23 tests covering timeout behavior
+
+**Success Criteria:**
+- [x] External API calls have configurable timeouts
+- [x] TimeoutError thrown on timeout
+- [x] Requests properly cancelled and cleaned up
+
+---
+
+### Milestone 18.3: BM25 Service LRU Cleanup
+
+**Objective:** Implement LRU cleanup for per-collection BM25 services.
+
+#### Tasks
+
+| ID | Task | Priority | Status |
+|----|------|----------|--------|
+| 18.3.1 | Add `lastAccessed` timestamp to BM25 service tracking | MEDIUM | DONE |
+| 18.3.2 | Implement `cleanupStaleServices()` method | MEDIUM | DONE |
+| 18.3.3 | Add periodic cleanup timer (every 5 minutes) | MEDIUM | DONE |
+| 18.3.4 | Add max service count limit (10 collections) | MEDIUM | DONE |
+| 18.3.5 | Add cleanup on graceful shutdown | MEDIUM | DONE |
+| 18.3.6 | Add tests for LRU cleanup behavior | MEDIUM | DONE |
+
+**Implementation Details:**
+- Added `BM25ServiceEntry` interface with `lastAccessed` timestamp
+- Configuration constants:
+  - `BM25_MAX_SERVICES = 10` (max cached services)
+  - `BM25_TTL_MS = 30 minutes` (stale threshold)
+  - `BM25_CLEANUP_INTERVAL_MS = 5 minutes`
+- LRU cleanup algorithm:
+  1. Remove entries not accessed within TTL
+  2. If count > max, evict oldest by lastAccessed
+- Public methods:
+  - `getBM25ServiceCount()` for monitoring
+  - `stopBM25Cleanup()` for graceful shutdown
+- 4 integration tests for BM25 service management
+
+**Success Criteria:**
+- [x] BM25 services cleaned up based on LRU policy
+- [x] Max service count enforced
+- [x] Cleanup stops on shutdown
+
+---
+
+### Phase 18 Summary
+
+**Files Created:**
+- `mcp-qdrant-memory/src/shutdown.ts` - Graceful shutdown manager
+- `mcp-qdrant-memory/src/http-client.ts` - HTTP client with timeout support
+- `mcp-qdrant-memory/src/__tests__/shutdown.test.ts` - Shutdown tests
+- `mcp-qdrant-memory/src/__tests__/http-client.test.ts` - HTTP client tests
+
+**Files Modified:**
+- `mcp-qdrant-memory/src/index.ts` - Shutdown integration, cleanup methods
+- `mcp-qdrant-memory/src/persistence/qdrant.ts` - BM25 LRU cleanup, fetchWithTimeout usage
+- `mcp-qdrant-memory/src/__tests__/integration/qdrant.integration.test.ts` - BM25 tests
+
+**Tests Added:**
+- 21 shutdown tests
+- 23 http-client tests
+- 4 BM25 management tests
+- **Total: 48 new tests**
+
+**PRD Coverage:**
+- [x] 4.5.2 Timeout Configuration - Complete
+- [x] 4.6.1 Graceful Shutdown - Complete
+- [x] 4.6.2 BM25 Service Cleanup - Complete
+
+**Deferred to Future Phase:**
+- 4.5.1 Result Type Pattern - Requires significant refactoring
+- 4.5.3 Structured Logging - Lower impact, can be added incrementally
+- 4.6.3 Connection Lifecycle Management - Health checks, reconnection logic
+
+---
+
 ## Appendix: Plan Guardrail Rule Specifications
 
 ### A.1 Coverage Rules (2)
