@@ -271,7 +271,9 @@ class IndexingEventHandler(FileSystemEventHandler):
 
             # Process existing files
             if existing_files:
-                unique_existing_paths = sorted(set(existing_files), key=lambda p: str(p))
+                unique_existing_paths = sorted(
+                    set(existing_files), key=lambda p: str(p)
+                )
                 relative_paths = [
                     p.relative_to(self.project_path) for p in unique_existing_paths
                 ]

@@ -446,7 +446,9 @@ def run_indexing_with_specific_files(
                     try:
                         current_mtime = Path(file_path_str).stat().st_mtime
                         captured_mtime = state_info.get("mtime", 0)
-                        if abs(current_mtime - captured_mtime) > 0.001:  # Allow small float variance
+                        if (
+                            abs(current_mtime - captured_mtime) > 0.001
+                        ):  # Allow small float variance
                             stale_files.append(file_path_str)
                     except OSError:
                         # File no longer exists, remove from pre-captured state
