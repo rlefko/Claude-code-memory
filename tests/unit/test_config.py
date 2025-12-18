@@ -79,7 +79,7 @@ class TestIndexerConfig:
         config = IndexerConfig()
 
         assert config.openai_api_key == ""
-        assert config.qdrant_api_key == "default-key"
+        assert config.qdrant_api_key == ""
         assert config.qdrant_url == "http://localhost:6333"
         assert config.indexer_debug is False
         assert config.indexer_verbose is True
@@ -89,6 +89,8 @@ class TestIndexerConfig:
         assert config.max_file_size == 1048576
         assert config.batch_size == 100
         assert config.max_concurrent_files == 5
+        # Critical: must default to True for security
+        assert config.use_gitignore is True
 
     def test_environment_variable_override(self, monkeypatch):
         """Test that environment variables can be used in config creation."""

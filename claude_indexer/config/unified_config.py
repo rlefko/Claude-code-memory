@@ -476,7 +476,7 @@ class UnifiedConfig(BaseModel):
         return IndexerConfig(
             openai_api_key=self.api.openai.api_key,
             voyage_api_key=self.api.voyage.api_key,
-            qdrant_api_key=self.api.qdrant.api_key or "default-key",
+            qdrant_api_key=self.api.qdrant.api_key or "",
             qdrant_url=self.api.qdrant.url,
             embedding_provider=self.embedding.provider,
             embedder_type=self.embedding.provider,

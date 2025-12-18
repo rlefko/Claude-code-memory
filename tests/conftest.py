@@ -182,7 +182,7 @@ def qdrant_client() -> Iterator[QdrantClient]:
     config = load_config()
 
     # Use authentication if available
-    if config.qdrant_api_key and config.qdrant_api_key != "default-key":
+    if config.qdrant_api_key:
         client = QdrantClient(url=config.qdrant_url, api_key=config.qdrant_api_key)
     else:
         # Fall back to unauthenticated for local testing
@@ -243,9 +243,7 @@ def qdrant_store(qdrant_client) -> "QdrantStore":
 
     store = QdrantStore(
         url=config.qdrant_url,
-        api_key=(
-            config.qdrant_api_key if config.qdrant_api_key != "default-key" else None
-        ),
+        api_key=config.qdrant_api_key if config.qdrant_api_key else None,
     )
 
     # Clean up any existing test data
@@ -569,7 +567,7 @@ def _qdrant_available() -> bool:
         config = load_config()
 
         # Use authentication if available
-        if config.qdrant_api_key and config.qdrant_api_key != "default-key":
+        if config.qdrant_api_key:
             client = QdrantClient(url=config.qdrant_url, api_key=config.qdrant_api_key)
         else:
             # Fall back to unauthenticated for local testing
@@ -603,7 +601,7 @@ def cleanup_test_collections_on_failure():
 
         config = load_config()
 
-        if config.qdrant_api_key and config.qdrant_api_key != "default-key":
+        if config.qdrant_api_key:
             client = QdrantClient(url=config.qdrant_url, api_key=config.qdrant_api_key)
         else:
             client = QdrantClient("localhost", port=6333)

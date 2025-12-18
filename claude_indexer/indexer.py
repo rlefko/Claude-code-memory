@@ -1822,29 +1822,39 @@ class CoreIndexer:
 
         # Find new and modified files
         for file_path in candidate_files:
-            file_key = str(file_path.relative_to(self.project_path))
+            try:
+                file_key = str(file_path.relative_to(self.project_path))
+            except ValueError:
+                # Skip files outside project (e.g., symlinks pointing elsewhere)
+                self.logger.debug(f"Skipping file outside project: {file_path}")
+                continue
             current_hash = current_state.get(file_key, {}).get("hash", "")
             previous_hash = previous_state.get(file_key, {}).get("hash", "")
 
             if current_hash != previous_hash:
                 changed_files.append(file_path)
 
-        # Find deleted files and new files (still need full scan)
-        all_files = self._find_all_files(include_tests)
-        all_current_state = self._get_current_state(all_files)
-        current_keys = set(all_current_state.keys())
+        # Find deleted files - O(n) on previous state, NOT full filesystem scan
+        # This is much faster than scanning entire filesystem for large repos
         previous_keys = {
             k for k in previous_state if not k.startswith("_")
         }  # Exclude metadata keys
-        deleted_keys = previous_keys - current_keys
-        deleted_files.extend(deleted_keys)
 
-        # Also find NEW files (not in previous state)
-        new_keys = current_keys - previous_keys
-        for new_key in new_keys:
-            new_file_path = self.project_path / new_key
-            if new_file_path not in changed_files:  # Avoid duplicates
-                changed_files.append(new_file_path)
+        for prev_key in previous_keys:
+            prev_file_path = self.project_path / prev_key
+            if not prev_file_path.exists():
+                deleted_files.append(prev_key)
+
+        # Find NEW files - requires filesystem scan (no way to avoid this)
+        # _find_files_since only sees files already in state, not new files
+        all_files = self._find_all_files(include_tests)
+        for file_path in all_files:
+            try:
+                file_key = str(file_path.relative_to(self.project_path))
+            except ValueError:
+                continue
+            if file_key not in previous_keys and file_path not in changed_files:
+                changed_files.append(file_path)
 
         return changed_files, deleted_files
 
@@ -1862,7 +1872,12 @@ class CoreIndexer:
 
         # Categorize changed files
         for file_path in current_files:
-            file_key = str(file_path.relative_to(self.project_path))
+            try:
+                file_key = str(file_path.relative_to(self.project_path))
+            except ValueError:
+                # Skip files outside project (e.g., symlinks pointing elsewhere)
+                self.logger.debug(f"Skipping file outside project: {file_path}")
+                continue
             current_hash = current_state.get(file_key, {}).get("hash", "")
             previous_hash = previous_state.get(file_key, {}).get("hash", "")
 

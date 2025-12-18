@@ -87,8 +87,8 @@ def check_qdrant_connection(config: Any | None = None) -> CheckResult:
         if config:
             url = getattr(config, "qdrant_url", url)
             api_key = getattr(config, "qdrant_api_key", None)
-            # Don't use default-key as actual key
-            if api_key == "default-key":
+            # Don't use empty string as actual key
+            if not api_key:
                 api_key = None
 
         client = QdrantClient(url=url, api_key=api_key, timeout=5)
@@ -315,7 +315,7 @@ def check_collection_exists(config: Any | None, collection_name: str) -> CheckRe
         if config:
             url = getattr(config, "qdrant_url", url)
             api_key = getattr(config, "qdrant_api_key", None)
-            if api_key == "default-key":
+            if not api_key:
                 api_key = None
 
         client = QdrantClient(url=url, api_key=api_key, timeout=5)
