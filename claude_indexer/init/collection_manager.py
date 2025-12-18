@@ -10,8 +10,8 @@ logger = get_logger()
 class CollectionManager:
     """Manages Qdrant collection creation for init."""
 
-    # Default vector size for voyage-3.5-lite embeddings
-    DEFAULT_VECTOR_SIZE = 1024
+    # Default vector size for voyage-3.5-lite embeddings (512D)
+    DEFAULT_VECTOR_SIZE = 512
 
     def __init__(self, config_loader: ConfigLoader | None = None):
         """Initialize collection manager.
@@ -111,7 +111,7 @@ class CollectionManager:
         Args:
             collection_name: Name of the collection to create.
             force: If True, recreate existing collection.
-            vector_size: Size of dense vectors (default: 1024 for voyage-3.5-lite).
+            vector_size: Size of dense vectors (default: 512 for voyage-3.5-lite).
 
         Returns:
             InitStepResult indicating success or failure.
