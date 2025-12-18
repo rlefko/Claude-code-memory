@@ -496,6 +496,7 @@ class UnifiedConfig(BaseModel):
             use_parallel_processing=self.performance.use_parallel_processing,
             max_parallel_workers=self.performance.max_parallel_workers,
             cleanup_interval_minutes=self.performance.cleanup_interval_minutes,
+            use_gitignore=self.watcher.use_gitignore,
         )
 
     @classmethod
@@ -540,6 +541,7 @@ class UnifiedConfig(BaseModel):
             ),
             watcher=WatcherConfig(
                 debounce_seconds=config.debounce_seconds,
+                use_gitignore=config.use_gitignore,
             ),
             performance=PerformanceConfig(
                 batch_size=config.batch_size,
