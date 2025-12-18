@@ -163,6 +163,8 @@ class ProjectConfigManager:
             "settings.txt",
             ".claude-indexer/",
             ".claude/",
+            ".index_cache/",
+            ".embedding_cache/",
             "package-lock.json",
             "memory_guard_debug.txt",
             "memory_guard_debug_*.txt",
