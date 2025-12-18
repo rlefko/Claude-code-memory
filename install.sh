@@ -85,11 +85,10 @@ fi
 
 # Run the indexer with all passed arguments
 # Smart command detection and routing
-if [[ "\$1" =~ ^(hooks|watch|service|search|file|add-mcp|chat|init)$ ]]; then
-    # Advanced commands - pass through directly
-    exec "\$PYTHON_BIN" -m claude_indexer "\$@"
-elif [[ "\$1" == "index" ]]; then
-    # Explicit index command - pass through
+# All known CLI commands that should be passed through directly
+KNOWN_COMMANDS="index|init|doctor|status|show-config|config|file|post-write|stop-check|session-start|watch|service|hooks|collections|session|workspace|ignore|search|add-mcp|chat|quality-gates|perf"
+if [[ "\$1" =~ ^(\$KNOWN_COMMANDS)\$ ]]; then
+    # Known commands - pass through directly
     exec "\$PYTHON_BIN" -m claude_indexer "\$@"
 elif [[ "\$1" =~ ^--(help|version)$ ]]; then
     # Help and version commands
