@@ -17,7 +17,7 @@ class IndexerConfig(BaseModel):
     # API Keys
     openai_api_key: str = Field(default="")
     voyage_api_key: str = Field(default="")
-    qdrant_api_key: str = Field(default="")  # Empty default, set via env var QDRANT_API_KEY
+    qdrant_api_key: str = Field(default="")  # Set via QDRANT_API_KEY env var
 
     # URLs and Endpoints
     qdrant_url: str = Field(default="http://localhost:6333")

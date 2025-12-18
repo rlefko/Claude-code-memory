@@ -1845,9 +1845,10 @@ class CoreIndexer:
             if not prev_file_path.exists():
                 deleted_files.append(prev_key)
 
-        # New files are already detected by _find_files_since (mtime > last_run)
-        # Any file with mtime after last run that wasn't in previous state is new
-        for file_path in candidate_files:
+        # Find NEW files - requires filesystem scan (no way to avoid this)
+        # _find_files_since only sees files already in state, not new files
+        all_files = self._find_all_files(include_tests)
+        for file_path in all_files:
             try:
                 file_key = str(file_path.relative_to(self.project_path))
             except ValueError:
