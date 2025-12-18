@@ -202,7 +202,8 @@ class TestHierarchicalIgnoreManager:
         assert stats["project_ignore_exists"] is True
 
     @patch(
-        "claude_indexer.utils.hierarchical_ignore.HierarchicalIgnoreManager.GLOBAL_IGNORE"
+        "claude_indexer.utils.hierarchical_ignore."
+        "HierarchicalIgnoreManager.GLOBAL_IGNORE"
     )
     def test_global_patterns_loaded(
         self, mock_global_ignore, temp_project, temp_global
@@ -421,6 +422,75 @@ class TestHierarchicalIgnoreManager:
         reason = manager.get_ignore_reason("unique_gitignore_pattern.txt")
         assert reason is not None
         assert "gitignore" in reason.lower()
+
+    def test_indexer_cache_directories_excluded(self, temp_project):
+        """Test that indexer-generated cache directories are always excluded."""
+        from claude_indexer.utils.hierarchical_ignore import HierarchicalIgnoreManager
+
+        manager = HierarchicalIgnoreManager(temp_project).load()
+
+        # Indexer cache directories should ALWAYS be excluded
+        # Note: pathspec matches files INSIDE directories, not bare directory paths
+        assert manager.should_ignore(".index_cache/state.json")
+        assert manager.should_ignore(".embedding_cache/embeddings.bin")
+        assert manager.should_ignore(".index_cache/nested/deep/file.txt")
+        assert manager.should_ignore(".embedding_cache/any_file.txt")
+
+    def test_gitignore_patterns_work_end_to_end(self, temp_project):
+        """Test that gitignore patterns are actually being applied."""
+        from claude_indexer.utils.hierarchical_ignore import HierarchicalIgnoreManager
+
+        # Create a .gitignore with specific patterns
+        gitignore = temp_project / ".gitignore"
+        gitignore.write_text("secret.env\napi_keys/\n*.credentials\n")
+
+        manager = HierarchicalIgnoreManager(temp_project).load()
+
+        # All patterns from .gitignore should work
+        assert manager.should_ignore("secret.env")
+        assert manager.should_ignore("api_keys/config.json")
+        assert manager.should_ignore("app.credentials")
+
+        # Unmatched files should NOT be ignored
+        assert not manager.should_ignore("app.py")
+        assert not manager.should_ignore("README.md")
+
+    def test_universal_excludes_always_applied(self, temp_project):
+        """Test that universal excludes work even without .gitignore."""
+        from claude_indexer.utils.hierarchical_ignore import HierarchicalIgnoreManager
+
+        # No .gitignore in this project
+        manager = HierarchicalIgnoreManager(temp_project).load()
+
+        # Universal patterns should still work
+        assert manager.should_ignore(".git/config")
+        assert manager.should_ignore(".claude-indexer/state.json")
+        assert manager.should_ignore("node_modules/package.json")
+        assert manager.should_ignore("__pycache__/module.pyc")
+        assert manager.should_ignore(".venv/lib/python3.12/site.py")
+        assert manager.should_ignore(".index_cache/data.json")
+        # Use .txt to avoid matching *.bin pattern (tests dir pattern)
+        assert manager.should_ignore(".embedding_cache/vectors.txt")
+
+    def test_gitignore_combined_with_universal(self, temp_project):
+        """Test that gitignore and universal patterns both work together."""
+        from claude_indexer.utils.hierarchical_ignore import HierarchicalIgnoreManager
+
+        gitignore = temp_project / ".gitignore"
+        gitignore.write_text("custom_ignore/\n*.secret\n")
+
+        manager = HierarchicalIgnoreManager(temp_project).load()
+
+        # Universal patterns should work
+        assert manager.should_ignore("node_modules/lodash.js")
+        assert manager.should_ignore(".index_cache/state.json")
+
+        # Gitignore patterns should work
+        assert manager.should_ignore("custom_ignore/file.txt")
+        assert manager.should_ignore("api.secret")
+
+        # Normal files should NOT be ignored
+        assert not manager.should_ignore("src/main.py")
 
 
 class TestCreateDefaultClaudeignore:

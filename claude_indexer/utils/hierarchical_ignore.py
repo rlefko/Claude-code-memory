@@ -42,6 +42,8 @@ except ImportError:
         ".git/",
         ".claude-indexer/",
         ".claude/",
+        ".index_cache/",
+        ".embedding_cache/",
         ".svn/",
         ".hg/",
         # Python
