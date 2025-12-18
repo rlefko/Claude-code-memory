@@ -105,6 +105,47 @@ class TestClaudeignoreIndexerIntegration:
         assert manager.should_ignore("node_modules/package.json")
         assert manager.should_ignore("__pycache__/module.pyc")
 
+    def test_indexer_cache_directories_excluded(self):
+        """Test that the indexer doesn't index its own cache directories."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            project_dir = Path(tmpdir)
+
+            # Create a source file (should be indexed)
+            src_file = project_dir / "main.py"
+            src_file.write_text("def hello(): pass")
+
+            # Create cache directories (should NOT be indexed)
+            cache_dir = project_dir / ".index_cache"
+            cache_dir.mkdir()
+            (cache_dir / "state.json").write_text("{}")
+
+            embed_cache = project_dir / ".embedding_cache"
+            embed_cache.mkdir()
+            (embed_cache / "embeddings.bin").write_text("binary data")
+
+            # Run the ignore manager
+            from claude_indexer.utils.hierarchical_ignore import (
+                HierarchicalIgnoreManager,
+            )
+
+            manager = HierarchicalIgnoreManager(project_dir).load()
+
+            # Verify exclusions
+            assert not manager.should_ignore("main.py")
+            assert manager.should_ignore(".index_cache/state.json")
+            assert manager.should_ignore(".embedding_cache/embeddings.bin")
+
+            # Also verify filter_paths works correctly
+            all_files = list(project_dir.rglob("*"))
+            all_files = [f for f in all_files if f.is_file()]
+
+            included = manager.filter_paths(all_files)
+            included_names = [str(p.relative_to(project_dir)) for p in included]
+
+            assert "main.py" in included_names
+            assert ".index_cache/state.json" not in included_names
+            assert ".embedding_cache/embeddings.bin" not in included_names
+
 
 class TestClaudeignoreCLIIntegration:
     """Test .claudeignore CLI commands."""
