@@ -63,6 +63,8 @@ class IndexingEventHandler(FileSystemEventHandler):
                 "settings.txt",
                 ".claude-indexer/",
                 ".claude/",
+                ".index_cache/",
+                ".embedding_cache/",
                 "memory_guard_debug.txt",
                 "memory_guard_debug_*.txt",
             ],
@@ -79,6 +81,22 @@ class IndexingEventHandler(FileSystemEventHandler):
             OrderedDict()
         )  # path -> timestamp
         self._max_processed_files = 10000  # Threshold for cleanup
+
+        # Initialize HierarchicalIgnoreManager for proper .gitignore support
+        self._ignore_manager = None
+        try:
+            from claude_indexer.utils.hierarchical_ignore import (
+                HierarchicalIgnoreManager,
+            )
+
+            self._ignore_manager = HierarchicalIgnoreManager(
+                self.project_path, use_gitignore=True
+            ).load()
+        except Exception as e:
+            from ..indexer_logging import get_logger
+
+            logger = get_logger()
+            logger.warning(f"Could not load HierarchicalIgnoreManager: {e}")
 
         # Stats
         self.events_received = 0
@@ -202,7 +220,26 @@ class IndexingEventHandler(FileSystemEventHandler):
                 self.events_processed += len(filtered_paths)
 
     def _should_process_file(self, path: Path) -> bool:
-        """Check if a file should be processed."""
+        """Check if a file should be processed.
+
+        Uses HierarchicalIgnoreManager first (respects .gitignore,
+        UNIVERSAL_EXCLUDES, .claudeignore), then falls back to
+        watcher-specific patterns and file size checks.
+        """
+        # Resolve path to handle macOS symlinks (/var -> /private/var)
+        # This ensures path.relative_to(self.project_path) works correctly
+        path = path.resolve()
+
+        # First check HierarchicalIgnoreManager (respects .gitignore)
+        if self._ignore_manager is not None:
+            try:
+                relative_path = path.relative_to(self.project_path)
+                if self._ignore_manager.should_ignore(relative_path):
+                    return False
+            except ValueError:
+                pass  # Path not under project root, let file_utils handle it
+
+        # Then apply additional watcher-specific checks (patterns, file size)
         from claude_indexer.watcher.file_utils import should_process_file
 
         return should_process_file(
@@ -538,6 +575,8 @@ class Watcher:
                     ".claude/",
                     "package-lock.json",
                     ".claude-indexer/",
+                    ".index_cache/",
+                    ".embedding_cache/",
                 ],
             )
             print("⚠️  Watcher using FALLBACK patterns:")
