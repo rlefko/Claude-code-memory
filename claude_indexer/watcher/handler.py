@@ -267,7 +267,9 @@ class IndexingEventHandler(FileSystemEventHandler):
         logger.info("🔄 Reloading ignore patterns...")
 
         try:
-            from claude_indexer.utils.hierarchical_ignore import HierarchicalIgnoreManager
+            from claude_indexer.utils.hierarchical_ignore import (
+                HierarchicalIgnoreManager,
+            )
 
             new_manager = HierarchicalIgnoreManager(
                 self.project_path, use_gitignore=True
@@ -317,9 +319,8 @@ class IndexingEventHandler(FileSystemEventHandler):
                     files_to_remove.append(file_path)
 
             if files_to_remove:
-                logger.info(
-                    f"🗑️ Removing {len(files_to_remove)} newly-ignored files from collection..."
-                )
+                count = len(files_to_remove)
+                logger.info(f"🗑️ Removing {count} newly-ignored files...")
 
                 # Use existing _handle_deleted_files method (takes relative paths)
                 successfully_deleted, failed = indexer._handle_deleted_files(
