@@ -17,7 +17,7 @@ class IndexerConfig(BaseModel):
     # API Keys
     openai_api_key: str = Field(default="")
     voyage_api_key: str = Field(default="")
-    qdrant_api_key: str = Field(default="default-key")
+    qdrant_api_key: str = Field(default="")  # Empty default, set via env var QDRANT_API_KEY
 
     # URLs and Endpoints
     qdrant_url: str = Field(default="http://localhost:6333")
@@ -100,6 +100,7 @@ class IndexerConfig(BaseModel):
     include_markdown: bool = Field(default=True)
     include_tests: bool = Field(default=False)
     max_file_size: int = Field(default=1048576, ge=1024)  # 1MB default, min 1KB
+    use_gitignore: bool = Field(default=True)  # Respect .gitignore patterns
 
     # Performance Settings
     batch_size: int = Field(
@@ -129,7 +130,7 @@ class IndexerConfig(BaseModel):
         return cls(
             openai_api_key=os.environ.get("OPENAI_API_KEY", ""),
             voyage_api_key=os.environ.get("VOYAGE_API_KEY", ""),
-            qdrant_api_key=os.environ.get("QDRANT_API_KEY", "default-key"),
+            qdrant_api_key=os.environ.get("QDRANT_API_KEY", ""),
             qdrant_url=os.environ.get("QDRANT_URL", "http://localhost:6333"),
             embedding_provider=os.environ.get("EMBEDDING_PROVIDER", "openai"),
             voyage_model=os.environ.get("VOYAGE_MODEL", "voyage-3-lite"),

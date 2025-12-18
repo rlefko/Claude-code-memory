@@ -8,7 +8,7 @@ from claude_indexer.config import load_config
 config = load_config()
 client = QdrantClient(
     url=config.qdrant_url,
-    api_key=config.qdrant_api_key if config.qdrant_api_key != "default-key" else None,
+    api_key=config.qdrant_api_key if config.qdrant_api_key else None,
 )
 
 collections = client.get_collections().collections
