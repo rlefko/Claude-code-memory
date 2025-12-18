@@ -209,31 +209,43 @@ class InitManager:
                 project_path=self.options.project_path,
             )
 
-            # Create and run indexer
-            indexer = CoreIndexer(
-                project_path=str(self.options.project_path),
-                collection_name=collection_name,
-                config=config,
+            # Create embedder and vector store following cli_full.py pattern
+            from ..embeddings.registry import create_embedder_from_config
+            from ..storage.registry import create_store_from_config
+
+            # Enable persistent embedding cache in project directory
+            cache_dir = self.options.project_path / ".index_cache"
+            embedder = create_embedder_from_config(config, cache_dir=cache_dir)
+
+            vector_store = create_store_from_config(
+                {
+                    "backend": "qdrant",
+                    "url": config.qdrant_url,
+                    "api_key": config.qdrant_api_key,
+                    "enable_caching": True,
+                }
             )
 
-            # Get file patterns from project config
-            project_config = project_manager.load()
-            include = project_config.indexing.file_patterns.include
-            exclude = project_config.indexing.file_patterns.exclude
+            # Create indexer with correct parameters
+            indexer = CoreIndexer(
+                config, embedder, vector_store, self.options.project_path
+            )
 
-            # Run indexing
+            # Run indexing - file patterns are read from project config internally
             result = indexer.index_project(
-                include_patterns=include,
-                exclude_patterns=exclude,
+                collection_name=collection_name,
+                include_tests=False,
+                verbose=self.options.verbose,
             )
 
             if result.success:
                 return InitStepResult(
                     step_name="indexing",
                     success=True,
-                    message=f"Indexed {result.items_processed} entities",
+                    message=f"Indexed {result.entities_created} entities",
                     details={
-                        "entities": result.items_processed,
+                        "entities": result.entities_created,
+                        "files": result.files_processed,
                         "time": f"{result.processing_time:.2f}s",
                     },
                 )
