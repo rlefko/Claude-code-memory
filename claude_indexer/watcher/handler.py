@@ -182,6 +182,12 @@ class IndexingEventHandler(FileSystemEventHandler):
         try:
             path = Path(file_path)
 
+            # Check for .gitignore or .claudeignore changes and reload patterns
+            if path.name in (".gitignore", ".claudeignore"):
+                self._reload_ignore_patterns()
+                self.events_ignored += 1
+                return  # Don't try to index the ignore file itself
+
             # Fast exclude check for .claude-indexer/ files before expensive pattern matching
             if ".claude-indexer/" in file_path:
                 self.events_ignored += 1
@@ -249,6 +255,89 @@ class IndexingEventHandler(FileSystemEventHandler):
             self.ignore_patterns,
             self.max_file_size,
         )
+
+    def _reload_ignore_patterns(self) -> None:
+        """Reload ignore patterns when .gitignore or .claudeignore changes.
+
+        This enables dynamic updates when users add new patterns to their
+        ignore files. After reloading, triggers cleanup of any files that
+        now match the updated ignore patterns.
+        """
+        logger = get_logger()
+        logger.info("🔄 Reloading ignore patterns...")
+
+        try:
+            from claude_indexer.utils.hierarchical_ignore import HierarchicalIgnoreManager
+
+            new_manager = HierarchicalIgnoreManager(
+                self.project_path, use_gitignore=True
+            ).load()
+
+            self._ignore_manager = new_manager
+
+            stats = new_manager.get_stats()
+            logger.info(f"✅ Reloaded {stats['total_patterns']} ignore patterns")
+
+            # Trigger cleanup of newly-ignored files
+            self._cleanup_newly_ignored_files()
+
+        except Exception as e:
+            logger.warning(f"⚠️ Failed to reload ignore patterns: {e}")
+
+    def _cleanup_newly_ignored_files(self) -> None:
+        """Remove files from collection that now match ignore patterns.
+
+        Called after ignore patterns are reloaded to ensure files that
+        were indexed before being added to .gitignore are removed.
+        """
+        if self._ignore_manager is None:
+            return
+
+        logger = get_logger()
+
+        try:
+            from claude_indexer.main import _create_indexer_components
+
+            # Get indexer components to access collection
+            _, _, _, _, vector_store, indexer = _create_indexer_components(
+                str(self.project_path),
+                self.collection_name,
+                quiet=True,
+                verbose=False,
+                config_file=None,
+            )
+
+            # Get list of files in collection (returns relative paths)
+            vectored_files = indexer._get_vectored_files(self.collection_name)
+
+            # Find files that now should be ignored
+            files_to_remove = []
+            for file_path in vectored_files:
+                if self._ignore_manager.should_ignore(file_path):
+                    files_to_remove.append(file_path)
+
+            if files_to_remove:
+                logger.info(
+                    f"🗑️ Removing {len(files_to_remove)} newly-ignored files from collection..."
+                )
+
+                # Use existing _handle_deleted_files method (takes relative paths)
+                successfully_deleted, failed = indexer._handle_deleted_files(
+                    self.collection_name,
+                    files_to_remove,
+                    verbose=False,
+                )
+
+                logger.info(
+                    f"✅ Cleanup complete: {len(successfully_deleted)} files removed"
+                )
+                if failed:
+                    logger.warning(f"⚠️ Failed to remove {len(failed)} files")
+            else:
+                logger.info("✅ No files need cleanup")
+
+        except Exception as e:
+            logger.warning(f"⚠️ Failed to cleanup newly-ignored files: {e}")
 
     def _process_file_change(self, path: Path, event_type: str):
         """Process a file change or creation with Git+Meta deduplication."""
