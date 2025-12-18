@@ -187,9 +187,19 @@ class IndexingEventHandler(FileSystemEventHandler):
     def _process_batch_from_coalescer(self, ready_files: list[str]):
         """Callback for the coalescer to process a batch of files."""
         if ready_files:
-            ready_paths = [Path(fp) for fp in ready_files]
-            self._process_file_batch(ready_paths)
-            self.events_processed += len(ready_files)
+            # Re-filter files before processing - files may have changed during
+            # the debounce window, or initial filtering may have been incomplete
+            filtered_paths = []
+            for fp in ready_files:
+                path = Path(fp)
+                if path.exists() and self._should_process_file(path):
+                    filtered_paths.append(path)
+                else:
+                    self.events_ignored += 1
+
+            if filtered_paths:
+                self._process_file_batch(filtered_paths)
+                self.events_processed += len(filtered_paths)
 
     def _should_process_file(self, path: Path) -> bool:
         """Check if a file should be processed."""
