@@ -89,7 +89,8 @@ class TestIndexerConfig:
         assert config.max_file_size == 1048576
         assert config.batch_size == 100
         assert config.max_concurrent_files == 5
-        assert config.use_gitignore is True  # Critical: must default to True for security
+        # Critical: must default to True for security
+        assert config.use_gitignore is True
 
     def test_environment_variable_override(self, monkeypatch):
         """Test that environment variables can be used in config creation."""
