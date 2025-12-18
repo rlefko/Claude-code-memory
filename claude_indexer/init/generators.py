@@ -166,27 +166,48 @@ debug/
         """Generate default Claude Code settings."""
         hooks_path = str(self.project_path / ".claude" / "hooks")
         collection = self.template_manager.collection_name
+        venv_python = self.template_manager.variables.get("VENV_PYTHON", "python3")
 
         return {
             "hooks": {
+                "SessionStart": [
+                    {
+                        "hooks": [
+                            {
+                                "type": "command",
+                                "command": f"{venv_python} {hooks_path}/session_start.py",
+                            }
+                        ],
+                    }
+                ],
+                "UserPromptSubmit": [
+                    {
+                        "hooks": [
+                            {
+                                "type": "command",
+                                "command": f"{venv_python} {hooks_path}/prompt_handler.py",
+                            }
+                        ],
+                    }
+                ],
+                "PreToolUse": [
+                    {
+                        "matcher": "Bash|Write|Edit",
+                        "hooks": [
+                            {
+                                "type": "command",
+                                "command": f"{hooks_path}/pre-tool-guard.sh",
+                            }
+                        ],
+                    }
+                ],
                 "PostToolUse": [
                     {
                         "matcher": "Write|Edit",
                         "hooks": [
                             {
                                 "type": "command",
-                                "command": f"{hooks_path}/after-write.sh",
-                            }
-                        ],
-                    }
-                ],
-                "Stop": [
-                    {
-                        "matcher": ".*",
-                        "hooks": [
-                            {
-                                "type": "command",
-                                "command": f"{hooks_path}/end-of-turn-check.sh",
+                                "command": f"{hooks_path}/post-file-change.sh",
                             }
                         ],
                     }

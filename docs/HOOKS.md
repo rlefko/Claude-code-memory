@@ -417,14 +417,22 @@ Hooks are configured in `.claude/settings.local.json`:
   "hooks": {
     "SessionStart": [
       {
-        "type": "command",
-        "command": "/path/to/venv/bin/python /path/to/hooks/session_start.py"
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/path/to/venv/bin/python /path/to/hooks/session_start.py"
+          }
+        ]
       }
     ],
     "UserPromptSubmit": [
       {
-        "type": "command",
-        "command": "/path/to/venv/bin/python /path/to/hooks/prompt_handler.py"
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/path/to/venv/bin/python /path/to/hooks/prompt_handler.py"
+          }
+        ]
       }
     ],
     "PreToolUse": [
@@ -455,6 +463,8 @@ Hooks are configured in `.claude/settings.local.json`:
   }
 }
 ```
+
+> **Note:** All hook events require the nested `hooks` array structure. Event-specific hooks (SessionStart, UserPromptSubmit) don't need a `matcher`, but still require the `hooks` wrapper.
 
 ### Template Variables
 
