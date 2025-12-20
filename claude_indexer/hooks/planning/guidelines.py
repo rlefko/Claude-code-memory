@@ -136,9 +136,14 @@ class PlanningGuidelinesGenerator:
     CODE_REUSE_TEMPLATE = """## 1. Code Reuse Check (CRITICAL)
 Before proposing ANY new function, class, or component:
 - Search the codebase: `{mcp_prefix}search_similar("functionality")`
-- Check existing patterns: `{mcp_prefix}read_graph(entity="Component", mode="relationships")`
+- Check existing patterns: `{mcp_prefix}read_graph(entity="ComponentName", mode="smart")`
 - If similar exists, plan to REUSE or EXTEND it
 - State explicitly: "Verified no existing implementation" or "Will extend existing Y"
+
+**read_graph tips:**
+- ALWAYS use `entity="Name"` for focused results (10-20 items vs 300+ unfiltered)
+- Test code is filtered by default; use `includeTests=true` to include tests
+- Use `mode="smart"` for AI summary, `mode="relationships"` for raw connections
 """  # noqa: E501
     # fmt: on
 
@@ -393,6 +398,8 @@ Flag any step that may introduce:
         """
         return f"""[Planning Mode] Remember:
 - Search before implementing: {self._mcp_prefix}search_similar("feature")
+- Use entity-specific read_graph: {self._mcp_prefix}read_graph(entity="Name", mode="smart")
+- Test code filtered by default (includeTests=true to include)
 - Include test tasks for new code
 - Include doc tasks for user-facing changes
 """
