@@ -89,13 +89,23 @@ class GitHooksManager:
         """Create the pre-commit hook script."""
         hook_content = f"""#!/bin/bash
 # Claude Code Memory - Pre-commit Hook
-# Automatically index changed Python files before commit
+# Incrementally index only staged files before commit
 # Collection: {self.collection_name}
 
-echo "🔄 Running Claude Code indexing..."
+# Get staged files (added, copied, modified)
+STAGED_FILES=$(git diff --cached --name-only --diff-filter=ACM)
 
-# Run automatic indexing (auto-detects incremental mode)
-{indexer_path} --project "{self.project_path}" --collection "{self.collection_name}" --quiet
+if [ -z "$STAGED_FILES" ]; then
+    echo "📭 No files staged for commit - skipping indexing"
+    exit 0
+fi
+
+# Count files
+FILE_COUNT=$(echo "$STAGED_FILES" | wc -l | tr -d ' ')
+echo "🔄 Indexing $FILE_COUNT staged file(s)..."
+
+# Index only the staged files using --files-from-stdin (4-15x faster)
+echo "$STAGED_FILES" | {indexer_path} index --project "{self.project_path}" --collection "{self.collection_name}" --files-from-stdin --quiet
 
 # Check if indexing succeeded
 if [ $? -eq 0 ]; then
